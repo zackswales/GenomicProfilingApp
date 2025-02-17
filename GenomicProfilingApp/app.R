@@ -7,7 +7,7 @@ source("~/GenomicProfilingApp/R/plottingFunctionsZack.R")
 # Define UI for application that draws a histogram
 ui <- page_navbar(
   title = "Interactive Genomic Profiling",
-  bg = "#2D89C8",
+  bg = "#E46303",
   inverse = TRUE,
   nav_panel(title = "Home",
             card(
@@ -18,30 +18,37 @@ ui <- page_navbar(
               sidebar = sidebar(
                 open = TRUE,
                 title = "File Upload",
-                fileInput(inputId = "Annotation1",
-                          label = "Upload annotation file (.bed/.gtf)",
-                          accept = c(".bed", ".gtf")),
-                fileInput(inputId = "Annotation2",
-                          label = "Upload a second annotation file",
+                fileInput(inputId = "Region1",
+                          label = "Upload a region file (.bed/.gtf)",
                           accept = c(".bed", ".gtf")),
                 fileInput(inputId = "Sequence1",
-                          label = "Upload sequence data files",
-                          accept = c(".bw", ".bed"),
-                          multiple = TRUE)
+                          label = "Upload sequence data files (.bw)",
+                          accept = ".bw",
+                          multiple = TRUE),
+                textInput(inputId = "firstmatrixname",
+                          label = "Matrix Name"),
+                actionButton(inputId = "matrixgeneration",
+                             label = "Generate Matrices"),
+                helpText("Warning: matrix generation may take a few seconds")
+              ),
+                card(
+                full_screen = FALSE,
+                card_header("Uploaded Region Files"),
+                card_body(
+                  textOutput("annofile1_name"))
               ),
               card(
                 full_screen = FALSE,
-                card_header("Uploaded Annotation Files"),
+                card_header("Uploaded Sequence Data files"),
                 card_body(
-                  textOutput("annofile1_name"),
-                  textOutput("annofile2_name")
+                  textOutput("seqfile1_name")
                 )
               ),
               card(
                 full_screen = FALSE,
-                card_header("Uploaded Sequence Data file"),
+                card_header("Generated matrices"),
                 card_body(
-                  textOutput("seqfile1_name")
+                  textOutput("matrixnames")
                 )
               )
             )
@@ -73,18 +80,10 @@ ui <- page_navbar(
 # Define server logic required to draw a histogram
 server <- function(input, output) {
   output$annofile1_name <- renderText({
-    if(!is.null(input$Annotation1)) {
-      paste("Annotation file 1:", input$Annotation1$name)
+    if(!is.null(input$Region1)) {
+      paste("Annotation file 1:", input$Region1$name)
     } else {
       "No files uploaded"
-    }
-  })
-  
-  output$annofile2_name <- renderText({
-    if(!is.null(input$Annotation2)) {
-      paste("Annotation file 2:", input$Annotation2$name)
-    } else {
-      " "
     }
   })
   
@@ -96,13 +95,49 @@ server <- function(input, output) {
     }
   })
   
+  # Matrix list generation
+  
+  matl <- eventReactive(input$matrixgeneration, {
+    req(input$Region1, input$Sequence1, input$firstmatrixname)
+    region_file <- input$Region1$datapath
+    bigwig_files <- input$Sequence1$datapath
+    print(paste("BED/GTF File Path:", region_file))
+    print(paste("BigWig File Path(s):", paste(bigwig_files, collapse = ", ")))
+    b <- import(region_file)
+    features <- getFeature(b)
+    fbw <- bigwig_files
+    names(fbw) <- basename(fbw)
+    bwf <- importBWlist(fbw, names(fbw), selection = features)
+    grl <- list("features" = features)
+    matl <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = 10, w = 1, strand = "no")
+    if(length(matl) > 0) {
+      names(matl)[1] <- input$firstmatrixname
+    }
+    print("Generated matrices:")
+    print(names(matl))
+    print(matl[1])
+    return(matl)
+  })
+  
+  
+  output$matrixnames <- renderText({
+    req(matl())
+    mat_names <- names(matl())
+    if(is.null(mat_names) || length(mat_names) == 0) {
+      return("No matrices generated")
+    }
+    paste(mat_names, collapse = ", ")
+  })
+  
   show_row_names_reactive <- reactive({
     input$showrownames
   })
   
+  wins = c("Upstream" = 10, "Feature" = 20, "Downstream" = 10)
+  
   output$enrichedHeatmapPlot <- renderPlot({
-    hml <- hmList(matl = matl, wins = wins, col_fun = "red0", axis_labels = c("-20b", "TSS", "TES", "+20b"), show_row_names = show_row_names_reactive())
-    hml[[1]] + hml[[2]]
+    hml <- hmList(matl = matl(), wins = wins, col_fun = "red0", axis_labels = c("-10b", "TSS", "TES", "+10b"), show_row_names = show_row_names_reactive())
+    hml[[1]]
   })
 }
 
