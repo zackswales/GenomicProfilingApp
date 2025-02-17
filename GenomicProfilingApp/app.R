@@ -4,15 +4,17 @@ library(bslib)
 
 source("~/GenomicProfilingApp/R/plottingFunctionsZack.R")
 
-# Define UI for application that draws a histogram
+# Define UI for application with three panels
 ui <- page_navbar(
   title = "Interactive Genomic Profiling",
   bg = "#E46303",
   inverse = TRUE,
+  # Panel for home page with directions for use of application
   nav_panel(title = "Home",
             card(
               "Interactive genomic profiling tool to probe internal genomic features. Begin by navigating to the data processing page for file uploading before moving to the visualisations page to generate outputs"
             )),
+  # Panel for data processing and matrix formation
   nav_panel(title = "Data Processing",
             layout_sidebar(
               sidebar = sidebar(
@@ -26,10 +28,10 @@ ui <- page_navbar(
                           accept = ".bw",
                           multiple = TRUE),
                 textInput(inputId = "firstmatrixname",
-                          label = "Matrix Name"),
+                          label = "First Matrix Name"),
                 actionButton(inputId = "matrixgeneration",
                              label = "Generate Matrices"),
-                helpText("Warning: matrix generation may take a few seconds")
+                helpText("Warning: only click once as matrix generation takes a few seconds to complete")
               ),
                 card(
                 full_screen = FALSE,
@@ -53,17 +55,43 @@ ui <- page_navbar(
               )
             )
   ),
+  # Panel for visualisations
   nav_panel(title = "Visualisations",
             layout_sidebar(
               sidebar = sidebar(
-                card(
-                  full_screen = FALSE,
-                  card_header = "Row Names",
-                  checkboxInput(
-                    inputId = "showrownames",
-                    label = "Show row names",
-                    value = FALSE
-                  )
+                open = TRUE, 
+                title = "Visualisation Customisation",
+                radioButtons(
+                  inputId = "col_fun",
+                  label = "Select colour scheme:",
+                  choices = list("White to red" = 1, "Blue to red" = 2, "Red scale" = 3),
+                  selected = 1
+                ),
+                sliderInput(
+                  inputId = "quantiles",
+                  label = "Set quantile range:",
+                  min = 0,
+                  max = 0.99,
+                  value = c(0,0.99)
+                ),
+                sliderInput(
+                  inputId = "ylim",
+                  label = "Set y axis limit",
+                  min = 0,
+                  max = 20000,
+                  value = 10000
+                ),
+                checkboxInput(
+                  inputId = "showrownames",
+                  label = "Show row names",
+                  value = FALSE
+                ),
+                downloadButton(
+                  outputId = "downloadpng",
+                  label = "Download as .png"),
+                downloadButton(
+                  outputId = "downloadpdf",
+                  label = "Download as .pdf"
                 )
               ),
               card(
@@ -77,7 +105,7 @@ ui <- page_navbar(
             )
 )
 
-# Define server logic required to draw a histogram
+# Define server logic required to compute matrices and plot outputs
 server <- function(input, output) {
   output$annofile1_name <- renderText({
     if(!is.null(input$Region1)) {
@@ -89,7 +117,7 @@ server <- function(input, output) {
   
   output$seqfile1_name <- renderText({
     if(!is.null(input$Sequence1)) {
-      paste("Sequence Data File:", input$Sequence1$name)
+      paste(input$Sequence1$name)
     } else {
       "No sequence data file selected"
     }
@@ -129,16 +157,87 @@ server <- function(input, output) {
     paste(mat_names, collapse = ", ")
   })
   
+  # Creating reactive objects for the visualisation customisation options
+  
   show_row_names_reactive <- reactive({
     input$showrownames
   })
   
+  col_fun_reactive <- reactive({
+    switch(input$col_fun,
+           "1" = "red",
+           "2" = "bl2rd",
+           "3" = "red0")
+  })
+  
+  min_quantile_reactive <- reactive({
+    input$quantiles[1]
+  })
+  
+  max_quantile_reactive <- reactive({
+    input$quantiles[2]
+  })
+  
+  ylim_reactive <- reactive({
+    input$ylim
+  })
+  
+  # Creating the heatmaps
+  
   wins = c("Upstream" = 10, "Feature" = 20, "Downstream" = 10)
   
   output$enrichedHeatmapPlot <- renderPlot({
-    hml <- hmList(matl = matl(), wins = wins, col_fun = "red0", axis_labels = c("-10b", "TSS", "TES", "+10b"), show_row_names = show_row_names_reactive())
-    hml[[1]]
+    req(matl())
+    hml <- hmList(matl = matl(), wins = wins, col_fun = col_fun_reactive(), axis_labels = c("-10b", "TSS", "TES", "+10b"), show_row_names = show_row_names_reactive(), min_quantile = min_quantile_reactive(), max_quantile = max_quantile_reactive(), ylim = c(0, ylim_reactive()))
+    req(length(hml) > 0)
+    combined_hm <- Reduce(`+`, hml)
+    draw(combined_hm, merge_legend = TRUE)
   })
+  
+  output$downloadpng <- downloadHandler(
+    filename = function() { paste("heatmap_", Sys.Date(), ".png", sep="") },
+    content = function(file) {
+      png(file, width = 1200, height = 800, res = 150)  # Adjust quality
+      hml <- hmList(
+        matl = matl(), 
+        wins = wins, 
+        col_fun = col_fun_reactive(), 
+        axis_labels = c("-10b", "TSS", "TES", "+10b"), 
+        show_row_names = show_row_names_reactive(), 
+        min_quantile = min_quantile_reactive(), 
+        max_quantile = max_quantile_reactive(), 
+        ylim = c(0, ylim_reactive())
+      )
+      
+      req(length(hml) > 0)
+      combined_hm <- Reduce(`+`, hml)
+      draw(combined_hm, merge_legend = TRUE)
+      dev.off()  # Close the PNG file
+    }
+  )
+  
+  output$downloadpdf <- downloadHandler(
+    filename = function() { paste("heatmap_", Sys.Date(), ".pdf", sep="") },
+    content = function(file) {
+      pdf(file, width = 12, height = 8)  # Adjust quality
+      hml <- hmList(
+        matl = matl(), 
+        wins = wins, 
+        col_fun = col_fun_reactive(), 
+        axis_labels = c("-10b", "TSS", "TES", "+10b"), 
+        show_row_names = show_row_names_reactive(), 
+        min_quantile = min_quantile_reactive(), 
+        max_quantile = max_quantile_reactive(), 
+        ylim = c(0, ylim_reactive())
+      )
+      
+      req(length(hml) > 0)
+      combined_hm <- Reduce(`+`, hml)
+      draw(combined_hm, merge_legend = TRUE)
+      dev.off()  # Close the pdf file
+    }
+  )
+  
 }
 
 # Run the application 

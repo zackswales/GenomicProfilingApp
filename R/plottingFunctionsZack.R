@@ -18,6 +18,7 @@ library(stats)
 library(viridis)
 library(tibble)
 library(cowplot)
+library(ComplexHeatmap)
 
 ## NOTES
 ## default to no strand?
