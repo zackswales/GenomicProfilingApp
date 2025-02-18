@@ -1,4 +1,3 @@
-
 library(shiny)
 library(bslib)
 
@@ -22,22 +21,25 @@ ui <- page_navbar(
                 title = "File Upload",
                 fileInput(inputId = "Region1",
                           label = "Upload a region file (.bed/.gtf)",
-                          accept = c(".bed", ".gtf")),
+                          accept = c(".bed", ".gtf"),
+                          multiple = FALSE),
                 fileInput(inputId = "Sequence1",
                           label = "Upload sequence data files (.bw)",
                           accept = ".bw",
                           multiple = TRUE),
-                textInput(inputId = "firstmatrixname",
-                          label = "First Matrix Name"),
+                radioButtons(inputId = "strand",
+                             label = "Select strandedness of data:",
+                             choices = list("Forward" = 1, "Reverse" = 2, "Unstranded" = 3),
+                             selected = 1),
                 actionButton(inputId = "matrixgeneration",
                              label = "Generate Matrices"),
                 helpText("Warning: only click once as matrix generation takes a few seconds to complete")
               ),
-                card(
+              card(
                 full_screen = FALSE,
                 card_header("Uploaded Region Files"),
                 card_body(
-                  textOutput("annofile1_name"))
+                  textOutput("regionfile1_name"))
               ),
               card(
                 full_screen = FALSE,
@@ -74,12 +76,11 @@ ui <- page_navbar(
                   max = 0.99,
                   value = c(0,0.99)
                 ),
-                sliderInput(
-                  inputId = "ylim",
-                  label = "Set y axis limit",
-                  min = 0,
-                  max = 20000,
-                  value = 10000
+                numericInput(
+                  inputId = "maxylim",
+                  label = "Upper y-axis limit for metaplot",
+                  value = 5000,
+                  step = 50
                 ),
                 checkboxInput(
                   inputId = "showrownames",
@@ -102,14 +103,14 @@ ui <- page_navbar(
                 )
               )
             )
-            )
+  )
 )
 
 # Define server logic required to compute matrices and plot outputs
 server <- function(input, output) {
-  output$annofile1_name <- renderText({
+  output$regionfile1_name <- renderText({
     if(!is.null(input$Region1)) {
-      paste("Annotation file 1:", input$Region1$name)
+      paste(input$Region1$name)
     } else {
       "No files uploaded"
     }
@@ -117,33 +118,53 @@ server <- function(input, output) {
   
   output$seqfile1_name <- renderText({
     if(!is.null(input$Sequence1)) {
-      paste(input$Sequence1$name)
+      paste(input$Sequence1$name, collapse = ", ")
     } else {
-      "No sequence data file selected"
+      "No files uploaded"
     }
+  })
+  
+  # Creating reactive objects for the visualisation customisation options
+  
+  strand_reactive <- reactive({
+    switch(input$strand,
+           "1" = "for",
+           "2" = "rev",
+           "3" = "no")
   })
   
   # Matrix list generation
   
   matl <- eventReactive(input$matrixgeneration, {
-    req(input$Region1, input$Sequence1, input$firstmatrixname)
+    req(input$Region1, input$Sequence1)
+    
     region_file <- input$Region1$datapath
     bigwig_files <- input$Sequence1$datapath
+    bigwig_file_names <- input$Sequence1$name
+    
     print(paste("BED/GTF File Path:", region_file))
     print(paste("BigWig File Path(s):", paste(bigwig_files, collapse = ", ")))
+
+    # Import region files and get features
+    
     b <- import(region_file)
     features <- getFeature(b)
-    fbw <- bigwig_files
-    names(fbw) <- basename(fbw)
+    
+    # Filtering names of bigwig files
+    
+    fbw <- bigwig_files[grepl("\\.f\\.bw$", bigwig_file_names)]
+    rbw <- bigwig_files[grepl("\\.r\\.bw$", bigwig_file_names)]
+    names(fbw) <- sub("\\.f\\.bw$", "", bigwig_file_names[grepl("\\.f\\.bw$", bigwig_file_names)])
+    names(rbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
+    
+    # Import bigwig files as a list
+    
     bwf <- importBWlist(fbw, names(fbw), selection = features)
+    bwr <- importBWlist(rbw, names(rbw), selection = features)
+    
     grl <- list("features" = features)
-    matl <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = 10, w = 1, strand = "no")
-    if(length(matl) > 0) {
-      names(matl)[1] <- input$firstmatrixname
-    }
-    print("Generated matrices:")
-    print(names(matl))
-    print(matl[1])
+    
+    matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = 10, w = 1, strand = strand_reactive())
     return(matl)
   })
   
@@ -178,17 +199,18 @@ server <- function(input, output) {
     input$quantiles[2]
   })
   
-  ylim_reactive <- reactive({
-    input$ylim
+  max_ylim_reactive <- reactive({
+    input$maxylim
   })
   
+
   # Creating the heatmaps
   
   wins = c("Upstream" = 10, "Feature" = 20, "Downstream" = 10)
   
   output$enrichedHeatmapPlot <- renderPlot({
     req(matl())
-    hml <- hmList(matl = matl(), wins = wins, col_fun = col_fun_reactive(), axis_labels = c("-10b", "TSS", "TES", "+10b"), show_row_names = show_row_names_reactive(), min_quantile = min_quantile_reactive(), max_quantile = max_quantile_reactive(), ylim = c(0, ylim_reactive()))
+    hml <- hmList(matl = matl(), wins = wins, col_fun = col_fun_reactive(), axis_labels = c("-10b", "TSS", "TES", "+10b"), show_row_names = show_row_names_reactive(), min_quantile = min_quantile_reactive(), max_quantile = max_quantile_reactive(), ylim = c(0, max_ylim_reactive()))
     req(length(hml) > 0)
     combined_hm <- Reduce(`+`, hml)
     draw(combined_hm, merge_legend = TRUE)
