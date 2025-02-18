@@ -18,6 +18,7 @@ ui <- page_navbar(
             layout_sidebar(
               sidebar = sidebar(
                 open = TRUE,
+                width = 325,
                 title = "File Upload",
                 fileInput(inputId = "Region1",
                           label = "Upload a region file (.bed/.gtf)",
@@ -29,8 +30,19 @@ ui <- page_navbar(
                           multiple = TRUE),
                 radioButtons(inputId = "strand",
                              label = "Select strandedness of data:",
-                             choices = list("Forward" = 1, "Reverse" = 2, "Unstranded" = 3),
+                             choices = list("Unstranded" = 1, "Forward" = 2, "Reverse" = 3),
                              selected = 1),
+                helpText("If all files have the same strandedness - select unstranded"),
+                numericInput(inputId = "flank",
+                             label = "Specify flank around feature:",
+                             value = 20,
+                             step = 10),
+                sliderInput(inputId = "windowsize",
+                            label = "Select window size for signal aggregation:",
+                            min = 1,
+                            max = 20,
+                            value = 1),
+                helpText("Warning: flank value must be divisible by window size"),
                 actionButton(inputId = "matrixgeneration",
                              label = "Generate Matrices"),
                 helpText("Warning: only click once as matrix generation takes a few seconds to complete")
@@ -128,9 +140,17 @@ server <- function(input, output) {
   
   strand_reactive <- reactive({
     switch(input$strand,
-           "1" = "for",
-           "2" = "rev",
-           "3" = "no")
+           "1" = "no",
+           "2" = "for",
+           "3" = "rev")
+  })
+  
+  flank_reactive <- reactive({
+    input$flank
+  })
+  
+  windowsize_reactive <- reactive({
+    input$windowsize
   })
   
   # Matrix list generation
@@ -149,6 +169,7 @@ server <- function(input, output) {
     
     b <- import(region_file)
     features <- getFeature(b)
+    flank <- getFeature(b, start_flank = input$flank, end_flank = input$flank)
     
     # Filtering names of bigwig files
     
@@ -159,12 +180,13 @@ server <- function(input, output) {
     
     # Import bigwig files as a list
     
-    bwf <- importBWlist(fbw, names(fbw), selection = features)
-    bwr <- importBWlist(rbw, names(rbw), selection = features)
+    bwf <- importBWlist(fbw, names(fbw), selection = flank)
+    bwr <- importBWlist(rbw, names(rbw), selection = flank)
     
     grl <- list("features" = features)
     
-    matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = 10, w = 1, strand = strand_reactive())
+    matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive())
+    print(matl[1])
     return(matl)
   })
   
@@ -204,13 +226,27 @@ server <- function(input, output) {
   })
   
 
-  # Creating the heatmaps
+  # Defining the windows and axis labels
   
-  wins = c("Upstream" = 10, "Feature" = 20, "Downstream" = 10)
+  wins_reactive <- reactive({
+    req(flank_reactive())
+    c("Upstream" = flank_reactive() / windowsize_reactive(), 
+      "Feature" = (2 * flank_reactive()) / windowsize_reactive(), 
+      "Downstream" = flank_reactive() / windowsize_reactive())
+  })
+  
+  axis_labels_reactive <- reactive({
+    req(flank_reactive())
+    x <- flank_reactive()
+    c(paste0("-", x, "b"), "TSS", "TES", paste0("+", x, "b"))
+  })
+  
+  
+  # Creating the heatmaps
   
   output$enrichedHeatmapPlot <- renderPlot({
     req(matl())
-    hml <- hmList(matl = matl(), wins = wins, col_fun = col_fun_reactive(), axis_labels = c("-10b", "TSS", "TES", "+10b"), show_row_names = show_row_names_reactive(), min_quantile = min_quantile_reactive(), max_quantile = max_quantile_reactive(), ylim = c(0, max_ylim_reactive()))
+    hml <- hmList(matl = matl(), wins = wins_reactive(), col_fun = col_fun_reactive(), axis_labels = axis_labels_reactive(), show_row_names = show_row_names_reactive(), min_quantile = min_quantile_reactive(), max_quantile = max_quantile_reactive(), ylim = c(0, max_ylim_reactive()))
     req(length(hml) > 0)
     combined_hm <- Reduce(`+`, hml)
     draw(combined_hm, merge_legend = TRUE)
@@ -219,16 +255,16 @@ server <- function(input, output) {
   output$downloadpng <- downloadHandler(
     filename = function() { paste("heatmap_", Sys.Date(), ".png", sep="") },
     content = function(file) {
-      png(file, width = 1200, height = 800, res = 150)  # Adjust quality
+      png(file, width = 1350, height = 900, res = 150)  # Adjust quality
       hml <- hmList(
         matl = matl(), 
-        wins = wins, 
+        wins = wins_reactive(), 
         col_fun = col_fun_reactive(), 
-        axis_labels = c("-10b", "TSS", "TES", "+10b"), 
+        axis_labels = axis_labels_reactive(), 
         show_row_names = show_row_names_reactive(), 
         min_quantile = min_quantile_reactive(), 
         max_quantile = max_quantile_reactive(), 
-        ylim = c(0, ylim_reactive())
+        ylim = c(0, max_ylim_reactive())
       )
       
       req(length(hml) > 0)
@@ -241,16 +277,16 @@ server <- function(input, output) {
   output$downloadpdf <- downloadHandler(
     filename = function() { paste("heatmap_", Sys.Date(), ".pdf", sep="") },
     content = function(file) {
-      pdf(file, width = 12, height = 8)  # Adjust quality
+      pdf(file, width = 13.5, height = 9)  # Adjust quality
       hml <- hmList(
         matl = matl(), 
-        wins = wins, 
+        wins = wins_reactive(), 
         col_fun = col_fun_reactive(), 
-        axis_labels = c("-10b", "TSS", "TES", "+10b"), 
+        axis_labels = axis_labels_reactive(), 
         show_row_names = show_row_names_reactive(), 
         min_quantile = min_quantile_reactive(), 
         max_quantile = max_quantile_reactive(), 
-        ylim = c(0, ylim_reactive())
+        ylim = c(0, max_ylim_reactive())
       )
       
       req(length(hml) > 0)
