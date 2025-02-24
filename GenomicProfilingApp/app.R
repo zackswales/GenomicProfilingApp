@@ -99,6 +99,11 @@ ui <- page_navbar(
                   label = "Show row names",
                   value = FALSE
                 ),
+                actionButton(
+                  inputId = "plotbutton",
+                  label = "Plot Output"),
+                helpText("Output plotting will take a few seconds"),
+                helpText("Use download buttons after clicking Plot Output"),
                 downloadButton(
                   outputId = "downloadpng",
                   label = "Download as .png"),
@@ -186,7 +191,6 @@ server <- function(input, output) {
     grl <- list("features" = features)
     
     matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive())
-    print(matl[1])
     return(matl)
   })
   
@@ -245,11 +249,16 @@ server <- function(input, output) {
   # Creating the heatmaps
   
   output$enrichedHeatmapPlot <- renderPlot({
+    req(hml())
+    req(length(hml()) > 0)
+    combined_hm <- Reduce(`+`, hml())
+    draw(combined_hm, merge_legend = TRUE)
+  })
+  
+  hml <- eventReactive(input$plotbutton, {
     req(matl())
     hml <- hmList(matl = matl(), wins = wins_reactive(), col_fun = col_fun_reactive(), axis_labels = axis_labels_reactive(), show_row_names = show_row_names_reactive(), min_quantile = min_quantile_reactive(), max_quantile = max_quantile_reactive(), ylim = c(0, max_ylim_reactive()))
-    req(length(hml) > 0)
-    combined_hm <- Reduce(`+`, hml)
-    draw(combined_hm, merge_legend = TRUE)
+    return(hml)
   })
   
   output$downloadpng <- downloadHandler(
