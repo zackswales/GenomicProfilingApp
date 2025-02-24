@@ -41,3 +41,7 @@ wins <- c("Upstream" = 20, "Gene" = 40, "Downstream" = 20)
 
 hml <- hmList(matl = matl, wins = wins, show_row_names = FALSE, col_fun = "red0", axis_labels = c("-20b", "TSS", "TES", "+20b"))
 
+####
+
+m1 <- mplot(matl = matl, colmap = colmap)
+
