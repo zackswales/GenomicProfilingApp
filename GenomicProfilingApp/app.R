@@ -140,6 +140,13 @@ ui <- page_navbar(
                   max = 1,
                   value = c(0,1)
                 ),
+                sliderInput(
+                  inputId = "alpha",
+                  label = "Select alpha value:",
+                  min = 0,
+                  max = 1,
+                  value = 1
+                ),
                 actionButton(
                   inputId = "averageprofileplotbutton",
                   label = "Plot Output"),
@@ -367,6 +374,11 @@ server <- function(input, output) {
     input$averageprofilequantiles[2]
   })
   
+  alpha_reactive <- reactive({
+    req(input$alpha)
+    input$alpha
+  })
+  
   pal = c(RColorBrewer::brewer.pal(n = 9,name = "Set1"))
   pal2 = c(wes_palette("Darjeeling2")[2],wes_palette("Zissou1")[1],wes_palette("Darjeeling1")[4],wes_palette("Darjeeling1")[3])
   colmap = c(pal[c(1:5,7:9)])
@@ -383,7 +395,7 @@ server <- function(input, output) {
   
   average_profile <- eventReactive(input$averageprofileplotbutton, {
     req(matl())
-    average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive())
+    average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive())
     return(average_profile)
   })
   
@@ -393,7 +405,7 @@ server <- function(input, output) {
     filename = function() { paste("averageprofileplot_", Sys.Date(), ".png", sep="") },
     content = function(file) {
       png(file, width = 1350, height = 900, res = 150)  # Adjust quality
-      average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive())
+      average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive())
       
       print(average_profile)
       dev.off()  # Close the pdf file
@@ -404,7 +416,7 @@ server <- function(input, output) {
     filename = function() { paste("averageprofileplot_", Sys.Date(), ".pdf", sep="") },
     content = function(file) {
       pdf(file, width = 13.5, height = 9)  # Adjust quality
-      average_profile <- mplot(matl = matl(), colmap = colmap, title_reactive())
+      average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive())
       
       print(average_profile)
       dev.off()  # Close the pdf file
