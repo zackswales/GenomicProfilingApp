@@ -49,6 +49,9 @@ ui <- page_navbar(
                              label = "Specify flank around feature:",
                              value = 20,
                              step = 10),
+                checkboxInput(inputId = "smooth",
+                              label = "Smoothen data",
+                              value = FALSE),
                 actionButton(inputId = "matrixgeneration",
                              label = "Generate Matrices"),
                 helpText("Warning: only click once as matrix generation takes a few seconds to complete")
@@ -212,6 +215,10 @@ server <- function(input, output) {
     input$flank
   })
   
+  smooth_reactive <- reactive({
+    input$smooth
+  })
+  
   windowsize_reactive <- reactive({
     input$windowsize
   })
@@ -219,6 +226,12 @@ server <- function(input, output) {
   observe({
     if (input$flank %% input$windowsize != 0) {
       showNotification("Flank value must be divisible by window size!", type = "error")
+    }
+  })
+  
+  observe({
+    if (input$matrixgeneration > 0) {
+      showNotification("Generating matrices...", type = "message")
     }
   })
   
@@ -255,10 +268,18 @@ server <- function(input, output) {
     
     # Filtering names of bigwig files
     
-    fbw <- bigwig_files[grepl("\\.f\\.bw$", bigwig_file_names)]
-    rbw <- bigwig_files[grepl("\\.r\\.bw$", bigwig_file_names)]
-    names(fbw) <- sub("\\.f\\.bw$", "", bigwig_file_names[grepl("\\.f\\.bw$", bigwig_file_names)])
-    names(rbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
+    if(any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))){
+      fbw <- bigwig_files[grepl("\\.f\\.bw$", bigwig_file_names)]
+      rbw <- bigwig_files[grepl("\\.r\\.bw$", bigwig_file_names)]
+      names(fbw) <- sub("\\.f\\.bw$", "", bigwig_file_names[grepl("\\.f\\.bw$", bigwig_file_names)])
+      names(rbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
+    }
+    
+    else {
+      fbw <- bigwig_files[grepl("\\.bw$", bigwig_file_names)]
+      names(fbw) <- sub("\\.bw$", "", bigwig_file_names[grepl("\\.bw$", bigwig_file_names)])
+    }
+    
     
     # Import bigwig files as a list
     
@@ -267,12 +288,22 @@ server <- function(input, output) {
     
     grl <- list("features" = features)
     
-    if(input$getFeature == 1){
-    matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive())
-    return(matl)
-    } else if(input$getFeature == 2 || input$getFeature == 3){
-      matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive())
+    if(any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))){
+      if(input$getFeature == 1){
+        matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
+        return(matl)
+      } else if(input$getFeature == 2 || input$getFeature == 3){
+        matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
       return(matl)
+    }
+    } else {
+      if(input$getFeature == 1){
+        matl <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
+        return(matl)
+      } else if(input$getFeature == 2 || input$getFeature == 3){
+        matl <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
+      return(matl)
+      }
     }
   })
   
