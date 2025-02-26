@@ -33,6 +33,9 @@ ui <- page_navbar(
                              choices = list("Unstranded" = 1, "Forward" = 2, "Reverse" = 3),
                              selected = 1),
                 helpText("If all files have the same strandedness - select unstranded"),
+                radioButtons(inputId = "getFeature",
+                             label = "Specify feature of interest:",
+                             choices = list("Full gene" = 1, "TSS" = 2, "TES" = 3)),
                 numericInput(inputId = "flank",
                              label = "Specify flank around feature:",
                              value = 20,
@@ -210,6 +213,12 @@ server <- function(input, output) {
     input$windowsize
   })
   
+  observe({
+    if (input$flank %% input$windowsize != 0) {
+      showNotification("Flank value must be divisible by window size!", type = "error")
+    }
+  })
+  
   # Matrix list generation
   
   matl <- eventReactive(input$matrixgeneration, {
@@ -225,8 +234,21 @@ server <- function(input, output) {
     # Import region files and get features
     
     b <- import(region_file)
-    features <- getFeature(b)
-    flank <- getFeature(b, start_flank = input$flank, end_flank = input$flank)
+    
+    if(input$getFeature == 1){
+      features <- getFeature(b)
+      flank <- getFeature(b, start_flank = input$flank, end_flank = input$flank)
+    }
+    
+    if(input$getFeature == 2){
+      features <- getFeature(b, start_feature = "TSS", end_feature = "TSS")
+      flank <- getFeature(b, start_feature = "TSS", end_feature = "TSS", start_flank = input$flank, end_flank = input$flank)
+    }
+    
+    if(input$getFeature == 3){
+      features <- getFeature(b, start_feature = "TES", end_feature = "TES")
+      flank <- getFeature(b, start_feature = "TES", end_feature = "TES", start_flank = input$flank, end_flank = input$flank)
+    }
     
     # Filtering names of bigwig files
     
@@ -242,8 +264,13 @@ server <- function(input, output) {
     
     grl <- list("features" = features)
     
+    if(input$getFeature == 1){
     matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive())
     return(matl)
+    } else if(input$getFeature == 2 || input$getFeature == 3){
+      matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive())
+      return(matl)
+    }
   })
   
   
@@ -284,16 +311,43 @@ server <- function(input, output) {
   })
   
   wins_reactive <- reactive({
-    req(flank_reactive())
-    c("Upstream" = flank_reactive() / windowsize_reactive(), 
-      "Feature" = (2 * flank_reactive()) / windowsize_reactive(), 
-      "Downstream" = flank_reactive() / windowsize_reactive())
+    req(flank_reactive(), windowsize_reactive())
+    
+    if (input$getFeature == 1) {
+      return(c(
+        "Upstream" = flank_reactive() / windowsize_reactive(), 
+        "Feature" = (2 * flank_reactive()) / windowsize_reactive(), 
+        "Downstream" = flank_reactive() / windowsize_reactive()
+      ))
+    } else if (input$getFeature == 2 || input$getFeature == 3) {
+      return(c(
+        "Upstream" = flank_reactive() / windowsize_reactive(), 
+        "Feature" = 1, 
+        "Downstream" = flank_reactive() / windowsize_reactive()
+      ))
+    } else {
+      return(NULL)
+    }
   })
   
+  
   axis_labels_reactive <- reactive({
-    req(flank_reactive())
-    x <- flank_reactive()
-    c(paste0("-", x, "b"), "TSS", "TES", paste0("+", x, "b"))
+    req(flank_reactive(), input$getFeature)
+    
+    if(input$getFeature == 1){
+      x <- flank_reactive()
+      c(paste0("-", x, "b"), "TSS", "TES", paste0("+", x, "b"))
+    }
+    
+    else if(input$getFeature == 2){
+      x <- flank_reactive()
+      c(paste0("-", x, "b"), "TSS", paste0("+", x, "b"))
+    }
+    
+    else if(input$getFeature == 3){
+      x <- flank_reactive()
+      c(paste0("-", x, "b"), "TES", paste0("+", x, "b"))
+    }
   })
   
   
@@ -317,7 +371,7 @@ server <- function(input, output) {
   output$heatmapdownloadpng <- downloadHandler(
     filename = function() { paste("heatmap_", Sys.Date(), ".png", sep="") },
     content = function(file) {
-      png(file, width = 1350, height = 900, res = 150)  # Adjust quality
+      png(file, width = 1350, height = 900, res = 150)
       hml <- hmList(
         matl = matl(), 
         wins = wins_reactive(), 
@@ -332,14 +386,14 @@ server <- function(input, output) {
       req(length(hml) > 0)
       combined_hm <- Reduce(`+`, hml)
       draw(combined_hm, merge_legend = TRUE)
-      dev.off()  # Close the PNG file
+      dev.off()  
     }
   )
   
   output$heatmapdownloadpdf <- downloadHandler(
     filename = function() { paste("heatmap_", Sys.Date(), ".pdf", sep="") },
     content = function(file) {
-      pdf(file, width = 13.5, height = 9)  # Adjust quality
+      pdf(file, width = 13.5, height = 9)
       hml <- hmList(
         matl = matl(), 
         wins = wins_reactive(), 
@@ -354,7 +408,7 @@ server <- function(input, output) {
       req(length(hml) > 0)
       combined_hm <- Reduce(`+`, hml)
       draw(combined_hm, merge_legend = TRUE)
-      dev.off()  # Close the pdf file
+      dev.off()  
     }
   )
   
@@ -382,6 +436,42 @@ server <- function(input, output) {
   pal = c(RColorBrewer::brewer.pal(n = 9,name = "Set1"))
   pal2 = c(wes_palette("Darjeeling2")[2],wes_palette("Zissou1")[1],wes_palette("Darjeeling1")[4],wes_palette("Darjeeling1")[3])
   colmap = c(pal[c(1:5,7:9)])
+  
+  breaks_reactive <- reactive({
+    if(input$getFeature == 1){
+      x_range <- ncol(matl()[[1]])
+      break_positions <- c(0,0.25,0.75,1) * x_range
+    }
+    else if(input$getFeature == 2){
+      x_range <- ncol(matl()[[1]])
+      break_positions <- c(0, 0.5, 1) * x_range
+    }
+    else if(input$getFeature == 3){
+      x_range <- ncol(matl()[[1]])
+      break_positions <- c(0, 0.5, 1) * x_range
+    }
+    
+    return(break_positions)
+  })
+  
+  labels_reactive <- reactive({
+    req(flank_reactive(), input$getFeature)
+    
+    if(input$getFeature == 1){
+      x <- flank_reactive()
+      c(paste0("-", x, "b"), "TSS", "TES", paste0("+", x, "b"))
+    }
+    
+    else if(input$getFeature == 2){
+      x <- flank_reactive()
+      c(paste0("-", x, "b"), "TSS", paste0("+", x, "b"))
+    }
+    
+    else if(input$getFeature == 3){
+      x <- flank_reactive()
+      c(paste0("-", x, "b"), "TES", paste0("+", x, "b"))
+    }
+  })
 
   
   
@@ -395,7 +485,7 @@ server <- function(input, output) {
   
   average_profile <- eventReactive(input$averageprofileplotbutton, {
     req(matl())
-    average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive())
+    average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
     return(average_profile)
   })
   
@@ -404,22 +494,22 @@ server <- function(input, output) {
   output$averageprofiledownloadpng <- downloadHandler(
     filename = function() { paste("averageprofileplot_", Sys.Date(), ".png", sep="") },
     content = function(file) {
-      png(file, width = 1350, height = 900, res = 150)  # Adjust quality
+      png(file, width = 1350, height = 900, res = 150)  
       average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive())
       
       print(average_profile)
-      dev.off()  # Close the pdf file
+      dev.off() 
     }
   )
   
   output$averageprofiledownloadpdf <- downloadHandler(
     filename = function() { paste("averageprofileplot_", Sys.Date(), ".pdf", sep="") },
     content = function(file) {
-      pdf(file, width = 13.5, height = 9)  # Adjust quality
+      pdf(file, width = 13.5, height = 9)  
       average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive())
       
       print(average_profile)
-      dev.off()  # Close the pdf file
+      dev.off()  
     }
   )
   
