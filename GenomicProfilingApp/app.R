@@ -36,16 +36,19 @@ ui <- page_navbar(
                 radioButtons(inputId = "getFeature",
                              label = "Specify feature of interest:",
                              choices = list("Full gene" = 1, "TSS" = 2, "TES" = 3)),
+                conditionalPanel(
+                  condition = "input.getFeature == 1",
+                  sliderInput(inputId = "windowsize",
+                              label = "Select window size for signal aggregation:",
+                              min = 1,
+                              max = 20,
+                              value = 1),
+                  helpText("Warning: flank value must be divisible by window size")
+                ),
                 numericInput(inputId = "flank",
                              label = "Specify flank around feature:",
                              value = 20,
                              step = 10),
-                sliderInput(inputId = "windowsize",
-                            label = "Select window size for signal aggregation:",
-                            min = 1,
-                            max = 20,
-                            value = 1),
-                helpText("Warning: flank value must be divisible by window size"),
                 actionButton(inputId = "matrixgeneration",
                              label = "Generate Matrices"),
                 helpText("Warning: only click once as matrix generation takes a few seconds to complete")
@@ -495,7 +498,7 @@ server <- function(input, output) {
     filename = function() { paste("averageprofileplot_", Sys.Date(), ".png", sep="") },
     content = function(file) {
       png(file, width = 1350, height = 900, res = 150)  
-      average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive())
+      average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
       
       print(average_profile)
       dev.off() 
@@ -506,7 +509,7 @@ server <- function(input, output) {
     filename = function() { paste("averageprofileplot_", Sys.Date(), ".pdf", sep="") },
     content = function(file) {
       pdf(file, width = 13.5, height = 9)  
-      average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive())
+      average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
       
       print(average_profile)
       dev.off()  
