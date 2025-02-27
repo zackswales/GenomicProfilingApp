@@ -8,178 +8,249 @@ ui <- page_navbar(
   title = "Interactive Genomic Profiling",
   bg = "#E46303",
   inverse = TRUE,
+  
   # Panel for home page with directions for use of application
-  nav_panel(title = "Home",
-            card(
-              "Interactive genomic profiling tool to probe internal genomic features. Begin by navigating to the data processing page for file uploading and matrix computation before moving to the visualisations page to generate outputs"
-            )),
+  nav_panel(
+    title = "Home",
+    card(
+      "Interactive genomic profiling tool to probe internal genomic features. 
+       Begin by navigating to the data processing page for file uploading and 
+       matrix computation before moving to the visualisations page to generate outputs."
+    )
+  ),
+  
   # Panel for data processing and matrix formation
-  nav_panel(title = "Data Processing",
-            layout_sidebar(
-              sidebar = sidebar(
-                open = TRUE,
-                width = 325,
-                title = "Matrix Generation",
-                fileInput(inputId = "Region1",
-                          label = "Upload a region file (.bed/.gtf)",
-                          accept = c(".bed", ".gtf"),
-                          multiple = FALSE),
-                fileInput(inputId = "Sequence1",
-                          label = "Upload sequence data files (.bw)",
-                          accept = ".bw",
-                          multiple = TRUE),
-                radioButtons(inputId = "strand",
-                             label = "Select strandedness of data:",
-                             choices = list("Unstranded" = 1, "Forward" = 2, "Reverse" = 3),
-                             selected = 1),
-                helpText("If all files have the same strandedness - select unstranded"),
-                radioButtons(inputId = "getFeature",
-                             label = "Specify feature of interest:",
-                             choices = list("Full gene" = 1, "TSS" = 2, "TES" = 3)),
-                conditionalPanel(
-                  condition = "input.getFeature == 1",
-                  sliderInput(inputId = "windowsize",
-                              label = "Select window size for signal aggregation:",
-                              min = 1,
-                              max = 20,
-                              value = 1),
-                  helpText("Warning: flank value must be divisible by window size")
-                ),
-                numericInput(inputId = "flank",
-                             label = "Specify flank around feature:",
-                             value = 20,
-                             step = 10),
-                checkboxInput(inputId = "smooth",
-                              label = "Smoothen data",
-                              value = FALSE),
-                actionButton(inputId = "matrixgeneration",
-                             label = "Generate Matrices"),
-                helpText("Warning: only click once as matrix generation takes a few seconds to complete")
+  nav_panel(
+    title = "Data Processing",
+    navset_tab(
+      
+      # File Upload Panel
+      nav_panel(
+        title = "File Upload",
+        layout_sidebar(
+          sidebar = sidebar(
+            open = TRUE,
+            width = 325,
+            title = "Matrix Generation",
+            fileInput(
+              inputId = "Region1",
+              label = "Upload a region file (.bed/.gtf)",
+              accept = c(".bed", ".gtf"),
+              multiple = FALSE
+            ),
+            fileInput(
+              inputId = "Sequence1",
+              label = "Upload sequence data files (.bw)",
+              accept = ".bw",
+              multiple = TRUE
+            ),
+            radioButtons(
+              inputId = "strand",
+              label = "Select strandedness of data:",
+              choices = list("Unstranded" = 1, "Forward" = 2, "Reverse" = 3),
+              selected = 1
+            ),
+            helpText("If all files have the same strandedness - select unstranded")
+          ),
+          card(
+            full_screen = FALSE,
+            card_header("Uploaded Region Files"),
+            card_body(textOutput("regionfile1_name"))
+          ),
+          card(
+            full_screen = FALSE,
+            card_header("Uploaded Sequence Data Files"),
+            card_body(textOutput("seqfile1_name"))
+          )
+        )
+      ),
+      
+      # Feature Specification Panel
+      nav_panel(
+        title = "Feature Specification",
+        layout_sidebar(
+          sidebar = sidebar(
+            open = TRUE,
+            width = 325,
+            title = "Feature Specification",
+            radioButtons(
+              inputId = "getFeature",
+              label = "Specify feature of interest:",
+              choices = list("Full gene" = 1, "TSS" = 2, "TES" = 3)
+            ),
+            conditionalPanel(
+              condition = "input.getFeature == 1",
+              sliderInput(
+                inputId = "windowsize",
+                label = "Select window size for signal aggregation:",
+                min = 1,
+                max = 20,
+                value = 1
               ),
-              card(
-                full_screen = FALSE,
-                card_header("Uploaded Region Files"),
-                card_body(
-                  textOutput("regionfile1_name"))
-              ),
-              card(
-                full_screen = FALSE,
-                card_header("Uploaded Sequence Data files"),
-                card_body(
-                  textOutput("seqfile1_name")
-                )
-              ),
-              card(
-                full_screen = FALSE,
-                card_header("Generated matrices"),
-                card_body(
-                  textOutput("matrixnames")
-                )
-              )
+              helpText("Warning: flank value must be divisible by window size")
+            ),
+            numericInput(
+              inputId = "flank",
+              label = "Specify flank around feature:",
+              value = 20,
+              step = 10
             )
+          )
+        )
+      ),
+      
+      # Further Customisation Panel
+      nav_panel(
+        title = "Further Customisation",
+        layout_sidebar(
+          sidebar = sidebar(
+            open = TRUE,
+            width = 325,
+            title = "Further Customisation",
+            checkboxInput(
+              inputId = "smooth",
+              label = "Smoothen data",
+              value = FALSE
+            ),
+            actionButton(
+              inputId = "matrixgeneration",
+              label = "Generate Matrices"
+            ),
+            helpText("Warning: only click once as matrix generation takes a few seconds to complete")
+          ),
+          card(
+            full_screen = FALSE,
+            card_header("Generated Matrices"),
+            card_body(textOutput("matrixnames"))
+          )
+        )
+      ),
+      
+      # Saved Matrices Panel
+      nav_panel(
+        title = "Saved Matrices",
+        layout_sidebar(
+          sidebar = sidebar(
+            open = TRUE,
+            width = 325,
+            title = "Saved Matrices"
+          )
+        )
+      )
+    )
   ),
+  
   # Panel for visualisations
-  nav_panel(title = "Visualisations",
-            navset_tab(
-              nav_panel("Heatmap",
-            layout_sidebar(
-              sidebar = sidebar(
-                open = TRUE, 
-                title = "Heatmap Customisation",
-                radioButtons(
-                  inputId = "heatmap_col_fun",
-                  label = "Select colour scheme:",
-                  choices = list("White to red" = 1, "Blue to red" = 2, "Red scale" = 3),
-                  selected = 1
-                ),
-                sliderInput(
-                  inputId = "heatmapquantiles",
-                  label = "Set quantile range:",
-                  min = 0,
-                  max = 0.99,
-                  value = c(0,0.99)
-                ),
-                numericInput(
-                  inputId = "maxylim",
-                  label = "Upper y-axis limit for metaplot",
-                  value = 5000,
-                  step = 50
-                ),
-                checkboxInput(
-                  inputId = "showrownames",
-                  label = "Show row names",
-                  value = FALSE
-                ),
-                actionButton(
-                  inputId = "heatmapplotbutton",
-                  label = "Plot Output"),
-                helpText("Output plotting will take a few seconds"),
-                helpText("Use download buttons after clicking Plot Output"),
-                downloadButton(
-                  outputId = "heatmapdownloadpng",
-                  label = "Download as .png"),
-                downloadButton(
-                  outputId = "heatmapdownloadpdf",
-                  label = "Download as .pdf"
-                )
-              ),
-              card(
-                full_screen = TRUE,
-                card_header("Heatmap Visualisation"),
-                card_body(
-                  plotOutput("enrichedHeatmapPlot")
-                )
-              )
+  nav_panel(
+    title = "Visualisations",
+    navset_tab(
+      
+      # Heatmap Panel
+      nav_panel(
+        title = "Heatmap",
+        layout_sidebar(
+          sidebar = sidebar(
+            open = TRUE, 
+            title = "Heatmap Customisation",
+            radioButtons(
+              inputId = "heatmap_col_fun",
+              label = "Select colour scheme:",
+              choices = list("White to red" = 1, "Blue to red" = 2, "Red scale" = 3),
+              selected = 1
+            ),
+            sliderInput(
+              inputId = "heatmapquantiles",
+              label = "Set quantile range:",
+              min = 0,
+              max = 0.99,
+              value = c(0, 0.99)
+            ),
+            numericInput(
+              inputId = "maxylim",
+              label = "Upper y-axis limit for metaplot",
+              value = 5000,
+              step = 50
+            ),
+            checkboxInput(
+              inputId = "showrownames",
+              label = "Show row names",
+              value = FALSE
+            ),
+            actionButton(
+              inputId = "heatmapplotbutton",
+              label = "Plot Output"
+            ),
+            helpText("Output plotting will take a few seconds"),
+            helpText("Use download buttons after clicking Plot Output"),
+            downloadButton(
+              outputId = "heatmapdownloadpng",
+              label = "Download as .png"
+            ),
+            downloadButton(
+              outputId = "heatmapdownloadpdf",
+              label = "Download as .pdf"
             )
-  ),
-  nav_panel("Average Profile Plot",
-            layout_sidebar(
-              sidebar = sidebar(
-                open = TRUE, 
-                title = "Average Profile Plot Customisation",
-                textInput(
-                  inputId = "plottitle",
-                  label = "Enter plot title:",
-                  value = "Average profile plot"
-                ),
-                sliderInput(
-                  inputId = "averageprofilequantiles",
-                  label = "Set quantile range:",
-                  min = 0,
-                  max = 1,
-                  value = c(0,1)
-                ),
-                sliderInput(
-                  inputId = "alpha",
-                  label = "Select alpha value:",
-                  min = 0,
-                  max = 1,
-                  value = 1
-                ),
-                actionButton(
-                  inputId = "averageprofileplotbutton",
-                  label = "Plot Output"),
-                helpText("Output plotting will take a few seconds"),
-                helpText("Use download buttons after clicking Plot Output"),
-                downloadButton(
-                  outputId = "averageprofiledownloadpng",
-                  label = "Download as .png"),
-                downloadButton(
-                  outputId = "averageprofiledownloadpdf",
-                  label = "Download as .pdf"
-                )
-              ),
-              card(
-                full_screen = TRUE,
-                card_header("Average Profile Plot"),
-                card_body(
-                  plotOutput("averageprofileplot")
-                )
-              )
+          ),
+          card(
+            full_screen = TRUE,
+            card_header("Heatmap Visualisation"),
+            card_body(plotOutput("enrichedHeatmapPlot"))
+          )
+        )
+      ),
+      
+      # Average Profile Plot Panel
+      nav_panel(
+        title = "Average Profile Plot",
+        layout_sidebar(
+          sidebar = sidebar(
+            open = TRUE, 
+            title = "Average Profile Plot Customisation",
+            textInput(
+              inputId = "plottitle",
+              label = "Enter plot title:",
+              value = "Average profile plot"
+            ),
+            sliderInput(
+              inputId = "averageprofilequantiles",
+              label = "Set quantile range:",
+              min = 0,
+              max = 1,
+              value = c(0, 1)
+            ),
+            sliderInput(
+              inputId = "alpha",
+              label = "Select alpha value:",
+              min = 0,
+              max = 1,
+              value = 1
+            ),
+            actionButton(
+              inputId = "averageprofileplotbutton",
+              label = "Plot Output"
+            ),
+            helpText("Output plotting will take a few seconds"),
+            helpText("Use download buttons after clicking Plot Output"),
+            downloadButton(
+              outputId = "averageprofiledownloadpng",
+              label = "Download as .png"
+            ),
+            downloadButton(
+              outputId = "averageprofiledownloadpdf",
+              label = "Download as .pdf"
             )
+          ),
+          card(
+            full_screen = TRUE,
+            card_header("Average Profile Plot"),
+            card_body(plotOutput("averageprofileplot"))
+          )
+        )
+      )
+    )
   )
-  )
-))
+)
+
 
 # Define server logic required to compute matrices and plot outputs
 server <- function(input, output) {
