@@ -26,7 +26,7 @@ ui <- page_navbar(
       
       # File Upload Panel
       nav_panel(
-        title = "File Upload",
+        title = "1. File Upload",
         layout_sidebar(
           sidebar = sidebar(
             open = TRUE,
@@ -67,33 +67,42 @@ ui <- page_navbar(
       
       # Feature Specification Panel
       nav_panel(
-        title = "Feature Specification",
-        layout_sidebar(
-          sidebar = sidebar(
-            open = TRUE,
-            width = 325,
+        title = "2. Feature Specification",
+        div(
+          style = "display: flex; justify-content: center; align-items: center; min-height: 50vh;", # Adjust min-height as needed
+          layout_column_wrap(
+            width = "300px",
+            gap = "1rem",
             title = "Feature Specification",
-            radioButtons(
-              inputId = "getFeature",
-              label = "Specify feature of interest:",
-              choices = list("Full gene" = 1, "TSS" = 2, "TES" = 3)
+            card(
+              card_header("Feature"),
+              radioButtons(
+                inputId = "getFeature",
+                label = "Specify feature of interest:",
+                choices = list("Full gene" = 1, "TSS" = 2, "TES" = 3)
+              )
+            ),
+            card(
+              card_header("Flank region"),
+              numericInput(
+                inputId = "flank",
+                label = "Specify flank around feature:",
+                value = 20,
+                step = 10
+              )
             ),
             conditionalPanel(
               condition = "input.getFeature == 1",
-              sliderInput(
-                inputId = "windowsize",
-                label = "Select window size for signal aggregation:",
-                min = 1,
-                max = 20,
-                value = 1
-              ),
-              helpText("Warning: flank value must be divisible by window size")
-            ),
-            numericInput(
-              inputId = "flank",
-              label = "Specify flank around feature:",
-              value = 20,
-              step = 10
+              card(
+                card_header("Window size"),
+                sliderInput(
+                  inputId = "windowsize",
+                  label = "Select window size for signal aggregation:",
+                  min = 1,
+                  max = 20,
+                  value = 1
+                )
+              )
             )
           )
         )
@@ -101,7 +110,7 @@ ui <- page_navbar(
       
       # Further Customisation Panel
       nav_panel(
-        title = "Further Customisation",
+        title = "3. Further Customisation",
         layout_sidebar(
           sidebar = sidebar(
             open = TRUE,
@@ -116,7 +125,11 @@ ui <- page_navbar(
               inputId = "matrixgeneration",
               label = "Generate Matrices"
             ),
-            helpText("Warning: only click once as matrix generation takes a few seconds to complete")
+            helpText("Warning: only click once as matrix generation takes a few seconds to complete"),
+            actionButton(
+              inputId = "savematrices",
+              label = "Save Matrices"
+            )
           ),
           card(
             full_screen = FALSE,
@@ -133,7 +146,16 @@ ui <- page_navbar(
           sidebar = sidebar(
             open = TRUE,
             width = 325,
-            title = "Saved Matrices"
+            title = "Saved Matrices",
+            actionButton(
+              inputId = "clearmatrices",
+              label = "Clear Saved Matrices"
+            )
+          ),
+          card(
+            full_screen = TRUE,
+            card_header("Saved Matrices"),
+            card_body(textOutput("savedmatrices"))
           )
         )
       )
@@ -144,6 +166,21 @@ ui <- page_navbar(
   nav_panel(
     title = "Visualisations",
     navset_tab(
+      # Matrix selection tab
+      nav_panel(
+        title = "Matrix selection",
+        layout_sidebar(
+          sidebar = sidebar(
+            open = TRUE,
+            title = "Select matrices for plotting:",
+            checkboxGroupInput(
+              inputId = "selectedmatrices",
+              label = "Select all that apply:",
+              choices = character(0)
+            )
+          )
+        )
+      ),
       
       # Heatmap Panel
       nav_panel(
@@ -253,7 +290,7 @@ ui <- page_navbar(
 
 
 # Define server logic required to compute matrices and plot outputs
-server <- function(input, output) {
+server <- function(input, output, session) {
   
   ## Data processing
   
@@ -273,7 +310,7 @@ server <- function(input, output) {
     }
   })
   
-  # Creating reactive objects for the visualisation customisation options
+  # Creating reactive objects for the matrix customisation options
   
   strand_reactive <- reactive({
     switch(input$strand,
@@ -305,6 +342,7 @@ server <- function(input, output) {
       showNotification("Generating matrices...", type = "message")
     }
   })
+  
   
   # Matrix list generation
   
@@ -388,9 +426,70 @@ server <- function(input, output) {
     paste(mat_names, collapse = ", ")
   })
   
+  # Saving Matrices
+  
+  saved_matrices <- reactiveValues(list = list())
+  save_dir = tempdir()
+  
+  observeEvent(input$savematrices, {
+    req(matl())
+    mat_list <- matl()
+    
+    for (mat_name in names(mat_list)) {
+      file_path <- file.path(save_dir, paste0(mat_name, ".rds"))
+      saveRDS(mat_list[[mat_name]], file = file_path)
+      saved_matrices$list[[mat_name]] <- file_path
+    }
+    
+    showNotification("Matrices saved successfully!", type = "message")
+  })
+  
+  output$savedmatrices <- renderText({
+    if (length(saved_matrices$list) == 0) {
+      return("No matrices saved")
+    }
+    paste(names(saved_matrices$list), collapse = ", ")
+  })
+  
+  observeEvent(input$clearmatrices, {
+    for (file_path in saved_matrices$list) {
+      if (file.exists(file_path)) {
+        file.remove(file_path)
+      }
+    }
+    saved_matrices$list <- list()  # Clear list
+    showNotification("Saved matrices cleared", type = "warning")
+    updateCheckboxGroupInput(session, "selectedmatrices", choices = character(0), selected = NULL)
+  })
+  
+  observe({
+    updateCheckboxGroupInput(session, "selectedmatrices",
+                             choices = names(saved_matrices$list),
+                             selected = NULL
+    )
+  })
+
   ### Heatmaps
   
   # Creating reactive objects for the heatmaps customisation options
+  
+  selected_matrices_reactive <- reactive({
+    req(input$selectedmatrices)
+    
+    selected_mats <- lapply(input$selectedmatrices, function(mat_name) {
+      mat_path <- saved_matrices$list[[mat_name]]
+      if (file.exists(mat_path)) {
+        return(readRDS(mat_path))
+      } else {
+        return(NULL)
+      }
+    })
+    selected_mats <- selected_mats[!sapply(selected_mats, is.null)]
+    names(selected_mats) <- input$selectedmatrices[!sapply(selected_mats, function(x) is.null(x))]
+    
+    return(selected_mats)
+  })
+  
   
   show_row_names_reactive <- reactive({
     input$showrownames
@@ -466,8 +565,8 @@ server <- function(input, output) {
   })
   
   hml <- eventReactive(input$heatmapplotbutton, {
-    req(matl())
-    hml <- hmList(matl = matl(), wins = wins_reactive(), col_fun = heatmap_col_fun_reactive(), axis_labels = axis_labels_reactive(), show_row_names = show_row_names_reactive(), min_quantile = heatmap_min_quantile_reactive(), max_quantile = heatmap_max_quantile_reactive(), ylim = c(0, max_ylim_reactive()))
+    req(selected_matrices_reactive())
+    hml <- hmList(matl = selected_matrices_reactive(), wins = wins_reactive(), col_fun = heatmap_col_fun_reactive(), axis_labels = axis_labels_reactive(), show_row_names = show_row_names_reactive(), min_quantile = heatmap_min_quantile_reactive(), max_quantile = heatmap_max_quantile_reactive(), ylim = c(0, max_ylim_reactive()))
     return(hml)
   })
  
@@ -590,7 +689,7 @@ server <- function(input, output) {
   
   average_profile <- eventReactive(input$averageprofileplotbutton, {
     req(matl())
-    average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
+    average_profile <- mplot(matl = selected_matrices_reactive(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
     return(average_profile)
   })
   
