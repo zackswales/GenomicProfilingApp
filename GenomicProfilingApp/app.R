@@ -355,7 +355,7 @@ server <- function(input, output, session) {
     
     print(paste("BED/GTF File Path:", region_file))
     print(paste("BigWig File Path(s):", paste(bigwig_files, collapse = ", ")))
-
+    
     # Import region files and get features
     
     b <- import(region_file)
@@ -377,23 +377,37 @@ server <- function(input, output, session) {
     
     # Filtering names of bigwig files
     
-    if(any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))){
+    if(any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
       fbw <- bigwig_files[grepl("\\.f\\.bw$", bigwig_file_names)]
       rbw <- bigwig_files[grepl("\\.r\\.bw$", bigwig_file_names)]
-      names(fbw) <- sub("\\.f\\.bw$", "", bigwig_file_names[grepl("\\.f\\.bw$", bigwig_file_names)])
-      names(rbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
-    }
-    
-    else {
+      
+      # Assign names ONLY if fbw or rbw is non-empty
+      if (length(fbw) > 0) {
+        names(fbw) <- sub("\\.f\\.bw$", "", bigwig_file_names[grepl("\\.f\\.bw$", bigwig_file_names)])
+        bwf <- importBWlist(fbw, names(fbw), selection = flank)
+      }
+      
+      if (length(rbw) > 0 && length(fbw) > 0) {
+        names(rbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
+        bwr <- importBWlist(rbw, names(rbw), selection = flank)
+      }
+      
+      if (length(fbw) <= 0 && length(rbw) > 0){
+        fbw <- rbw
+        names(fbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
+        bwf <- importBWlist(fbw, names(fbw), selection = flank)
+      }
+    } else {
       fbw <- bigwig_files[grepl("\\.bw$", bigwig_file_names)]
-      names(fbw) <- sub("\\.bw$", "", bigwig_file_names[grepl("\\.bw$", bigwig_file_names)])
+      if (length(fbw) > 0) {
+        names(fbw) <- sub("\\.bw$", "", bigwig_file_names[grepl("\\.bw$", bigwig_file_names)])
+        bwf <- importBWlist(fbw, names(fbw), selection = flank)
+      }
     }
     
+
     
     # Import bigwig files as a list
-    
-    bwf <- importBWlist(fbw, names(fbw), selection = flank)
-    bwr <- importBWlist(rbw, names(rbw), selection = flank)
     
     grl <- list("features" = features)
     
@@ -403,15 +417,15 @@ server <- function(input, output, session) {
         return(matl)
       } else if(input$getFeature == 2 || input$getFeature == 3){
         matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
-      return(matl)
-    }
+        return(matl)
+      }
     } else {
       if(input$getFeature == 1){
         matl <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
         return(matl)
       } else if(input$getFeature == 2 || input$getFeature == 3){
         matl <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
-      return(matl)
+        return(matl)
       }
     }
   })
