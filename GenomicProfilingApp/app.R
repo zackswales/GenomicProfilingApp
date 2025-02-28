@@ -13,9 +13,16 @@ ui <- page_navbar(
   nav_panel(
     title = "Home",
     card(
-      "Interactive genomic profiling tool to probe internal genomic features. 
+      full_screen = FALSE,
+      card_header("Introduction"),
+      card_body("Interactive genomic profiling tool to probe internal genomic features. 
        Begin by navigating to the data processing page for file uploading and 
-       matrix computation before moving to the visualisations page to generate outputs."
+       matrix computation before moving to the visualisations page to generate outputs.")
+    ),
+    card(
+      full_screen = FALSE,
+      card_header("File Upload Requirements"),
+      card_body("If intending on locating exons/introns ensure region file is either .bed12 format or .gtf/.gff format")
     )
   ),
   
@@ -34,9 +41,9 @@ ui <- page_navbar(
             title = "Matrix Generation",
             fileInput(
               inputId = "Region1",
-              label = "Upload a region file (.bed/.gtf)",
+              label = "Upload region files (.bed/.gtf)",
               accept = c(".bed", ".gtf"),
-              multiple = FALSE
+              multiple = TRUE
             ),
             fileInput(
               inputId = "Sequence1",
@@ -296,11 +303,13 @@ server <- function(input, output, session) {
   
   output$regionfile1_name <- renderText({
     if(!is.null(input$Region1)) {
-      paste(input$Region1$name)
+      paste(input$Region1$name, collapse = ", ")
     } else {
       "No files uploaded"
     }
   })
+  
+  region_files <- list.files(input$Region1)
   
   output$seqfile1_name <- renderText({
     if(!is.null(input$Sequence1)) {
@@ -346,6 +355,7 @@ server <- function(input, output, session) {
   
   # Matrix list generation
   
+  if(length(region_files) > 1) {
   matl <- eventReactive(input$matrixgeneration, {
     req(input$Region1, input$Sequence1)
     
@@ -428,7 +438,7 @@ server <- function(input, output, session) {
         return(matl)
       }
     }
-  })
+  })}
   
   
   output$matrixnames <- renderText({
