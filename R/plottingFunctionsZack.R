@@ -21,6 +21,9 @@ library(cowplot)
 library(ComplexHeatmap)
 library(shiny)
 library(bslib)
+library(ggplot2)
+library(patchwork)
+library(scales)
 
 ## NOTES
 ## default to no strand?
@@ -324,55 +327,125 @@ mplot<-function(matl,matlc=NULL,feature = "Gene", unit = "Coverage (BPM)", title
 
 # Creating a function for converting heatmap to a ggplot object
 
-gghml <- function(matl, split = NULL, max_quantile = 1, min_quantile = 0, summarise_by = "mean") {
+hmList_ggplot <- function(matl, wins, split = NULL, split_cols = NULL, max_quantile = 0.99, min_quantile = 0, col_fun = "red", show_row_names = TRUE, win_labels = NULL, ylim = NULL, summarise_by = "mean", axis_labels = "") {
   
-  heatmap_list <- imap(matl, function(mat, sample_name) {
+  reds <- brewer.pal(n = 9, name = "Reds")
+  
+  common_min <- quantile(unlist(matl), min_quantile)
+  common_max <- quantile(unlist(matl), max_quantile)
+  
+  if (col_fun == "red") {
+    color_scale <- colorRampPalette(c("white", "red"))(100)
+  } else if (col_fun == "bl2rd") {
+    color_scale <- colorRampPalette(c("blue", "white", "red"))(100)
+  } else if (col_fun == "red0") {
+    color_scale <- colorRampPalette(c("white", reds[3], reds[7]))(100)
+  }
+  
+  if (is.null(ylim)) {
+    ymin <- min(0, common_min)
+    ymax <- common_max
+    offset <- quantile(1:(ymax - ymin), 0.01)
+    ylim <- c(ymin - offset, ymax + offset)
+  }
+  
+  features <- unlist(lapply(names(wins), function(name) rep(name, wins[name])))
+  features <- rev(features)
+  
+  fcols <- brewer.pal(9, "Set1")[1:length(wins)]
+  fcols <- rev(fcols)
+  names(fcols) <- names(wins)
+  
+  if (is.null(win_labels)) {
+    win_labels <- names(wins)
+    win_labels <- rev(win_labels)
+  }
+  if(!is.null(win_labels)) {
+    win_labels <- rev(win_labels)
+  }
+  
+  plot_list <- lapply(names(matl), function(name) {
+    mat <- matl[[name]]
     
-    df <- as.data.frame(mat) %>% 
-      mutate(Sample = sample_name) %>% 
-      rownames_to_column("name")
+    mat <- mat[, rev(seq_len(ncol(mat)))]
+    
+    df <- as.data.frame(mat)
+    df$row_name <- rownames(mat)
+    df_long <- df %>%
+      pivot_longer(cols = -row_name, names_to = "column", values_to = "value")
+    
+    df_long$column <- factor(df_long$column, levels = rev(unique(df_long$column)))
     
     if (!is.null(split)) {
-      df <- left_join(df, split %>% rownames_to_column("name"), by = "name")
-      
-      df <- df %>% 
-        group_by(Sample, across(all_of(names(split)))) %>% 
-        summarise(across(-name, ~ifelse(
-          .x <= quantile(.x, max_quantile) & .x >= quantile(.x, min_quantile), .x, NA_real_
-        ))) %>% 
-        summarise(across(-name, ~if (summarise_by == "mean") mean(.x, na.rm = TRUE) else sum(.x, na.rm = TRUE))) %>% 
-        ungroup()
-    } 
-    else {
-      df <- df %>% 
-        group_by(Sample) %>% 
-        summarise(across(-name, ~mean(.x[.x <= quantile(.x, max_quantile) & .x >= quantile(.x, min_quantile)], na.rm = TRUE)))
+      df_long <- df_long %>%
+        left_join(data.frame(row_name = rownames(split), split = split[, 1]), by = "row_name")
     }
     
-    col_names <- c("Sample")
-    if (!is.null(split)) {
-      col_names <- c(col_names, names(split))
-    }
+    summary_values <- rowMeans(mat)
     
-    names(df) <- c(col_names, paste0("w", 1:(ncol(df) - length(col_names))))
+    summary_df <- data.frame(row_name = rownames(mat), summary_value = summary_values)
     
-    df <- df %>% 
-      pivot_longer(-all_of(col_names), names_to = "Index", values_to = "Coverage") %>% 
-      mutate(Index = as.numeric(str_remove(Index, "w")))
+    df_long <- df_long %>%
+      left_join(summary_df, by = "row_name")
     
-    p <- ggplot(df, aes(x = Index, y = Sample, fill = Coverage)) +
+    df_long$scaled_value <- pmin(pmax(df_long$value, common_min), common_max)
+    df_long$color_index <- round(rescale(df_long$scaled_value, to = c(1, 100)))
+    df_long$fill_color <- color_scale[df_long$color_index]
+    
+    p <- ggplot(df_long, aes(x = column, y = row_name, fill = fill_color)) +
       geom_tile() +
-      scale_fill_gradientn(colors = c("white", "pink", "red", "darkred"), na.value = "white") + 
+      scale_fill_identity() +
       theme_minimal() +
       theme(
-        axis.text.y = element_text(size = 10),
-        axis.text.x = element_text(size = 8),
-        panel.grid = element_blank()
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title = element_blank(),
+        panel.grid = element_blank(),
+        axis.text.y = if (show_row_names) element_text(size = 5) else element_blank(),
+        axis.ticks.y = if (show_row_names) element_line() else element_blank(),
+        plot.title = element_text(hjust = 0.5, size = 10)
       ) +
-      labs(x = "Position", y = "Sample", fill = "Coverage")
+      ggtitle(name)
     
-    return(p)
+    feature_df <- data.frame(column = colnames(mat), feature = features)
+    feature_df$column <- factor(feature_df$column, levels = rev(unique(feature_df$column)))
+    
+    feature_annotation <- ggplot(feature_df, aes(x = column, y = 1, fill = feature)) +
+      geom_tile() +
+      scale_fill_manual(values = fcols, breaks = names(fcols), labels = win_labels) +
+      theme_void() +
+      theme(legend.position = "right", legend.justification = "top", legend.title = element_blank())
+    
+    x_axis_labels <- c("-50b", "TSS", "TES", "+50b")
+    x_axis_df <- data.frame(column = colnames(mat), x_label = rep("", ncol(mat)))
+    
+    tss_pos <- ncol(mat) - cumsum(wins)[1] + 1
+    tes_pos <- ncol(mat) - (cumsum(wins)[1] + wins[2]) + 1
+    
+    x_axis_df$x_label[ncol(mat)] <- x_axis_labels[1]
+    x_axis_df$x_label[tss_pos] <- x_axis_labels[2]
+    x_axis_df$x_label[tes_pos] <- x_axis_labels[3]
+    x_axis_df$x_label[1] <- x_axis_labels[4]
+    
+    x_axis_df$column <- factor(x_axis_df$column, levels = rev(unique(x_axis_df$column)))
+    
+    x_axis_annotation <- ggplot(x_axis_df, aes(x = column, y = 1, label = x_label)) +
+      geom_text(size = 3) +
+      theme_void()
+    
+    combined_plot <- feature_annotation + p + x_axis_annotation + plot_layout(ncol = 1, heights = c(0.1, 1, 0.1))
+    
+    if (!is.null(split)) {
+      split_annotation <- ggplot(df_long %>% distinct(row_name, split), aes(x = 1, y = row_name, fill = split)) +
+        geom_tile() +
+        scale_fill_manual(values = split_cols[[1]]) +
+        theme_void() +
+        theme(legend.position = "none")
+      combined_plot <- combined_plot + split_annotation + plot_layout(widths = c(1, 0.05))
+    }
+    
+    combined_plot
   })
   
-  return(heatmap_list)
+  return(plot_list)
 }
