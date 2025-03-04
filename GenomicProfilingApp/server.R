@@ -10,6 +10,35 @@ server <- function(input, output, session) {
     }
   })
   
+  output$Region1splitting <- renderUI({
+    if(input$split){
+      textInput(
+        inputId = "Region1splitting",
+        label = "Splitting identifier in first region file"
+      )
+    }
+  })
+  
+  output$conditionalRegion2 <- renderUI({
+    if(input$split){
+      fileInput(
+        inputId = "Region2",
+        label = "Upload second region file for splitting (.bed/.gtf)",
+        accept = c(".bed", ".gtf"),
+        multiple = FALSE
+      )
+    }
+  })
+  
+  output$conditionalRegion2splitting <- renderUI({
+    if(input$split){
+      textInput(
+        inputId = "Region2splitting",
+        label = "Splitting identifier in second region file"
+      )
+    }
+  })
+  
   region_files_count <- reactive({
     req(input$Region1)
     length(input$Region1$datapath)
@@ -65,6 +94,9 @@ server <- function(input, output, session) {
     
     if(region_files_count() == 1){
       region_file <- input$Region1$datapath
+      if(!is.null(input$Region2)){
+        region2_file <- input$Region2$datapath
+      }
       bigwig_files <- input$Sequence1$datapath
       bigwig_file_names <- input$Sequence1$name
       
@@ -73,21 +105,60 @@ server <- function(input, output, session) {
       
       # Import region files and get features
       
-      b <- import(region_file)
+      b <- readBed(region_file)
+      print(head(b))
+      if(!is.null(input$Region2)){
+        b2 <- readBed(region2_file)
+        combined_b <- c(b, b2)
+        print(head(b2))
+      }
       
       if(input$getFeature == 1){
-        features <- getFeature(b)
-        flank <- getFeature(b, start_flank = input$flank, end_flank = input$flank)
+        if(!is.null(input$Region2)){
+        features <- getFeature(combined_b, start_feature = "TSS", end_feature = "TES")
+        flank <- getFeature(combined_b, start_flank = input$flank, end_flank = input$flank)
+        } else {
+          features <- getFeature(b, start_feature = "TSS", end_feature = "TES")
+          flank <- getFeature(b, start_flank = input$flank, end_flank = input$flank)
+        }
       }
       
       if(input$getFeature == 2){
-        features <- getFeature(b, start_feature = "TSS", end_feature = "TSS")
-        flank <- getFeature(b, start_feature = "TSS", end_feature = "TSS", start_flank = input$flank, end_flank = input$flank)
+        if(!is.null(input$Region2)){
+        features <- getFeature(combined_b, start_feature = "TSS", end_feature = "TSS")
+        flank <- getFeature(combined_b, start_feature = "TSS", end_feature = "TSS", start_flank = input$flank, end_flank = input$flank)
+        } else {
+          features <- getFeature(b, start_feature = "TSS", end_feature = "TSS")
+          flank <- getFeature(b, start_feature = "TSS", end_feature = "TSS", start_flank = input$flank, end_flank = input$flank)
+        }
       }
       
       if(input$getFeature == 3){
-        features <- getFeature(b, start_feature = "TES", end_feature = "TES")
-        flank <- getFeature(b, start_feature = "TES", end_feature = "TES", start_flank = input$flank, end_flank = input$flank)
+        if(!is.null(input$Region2)){
+        features <- getFeature(combined_b, start_feature = "TES", end_feature = "TES")
+        flank <- getFeature(combined_b, start_feature = "TES", end_feature = "TES", start_flank = input$flank, end_flank = input$flank)
+        } else {
+          features <- getFeature(b, start_feature = "TES", end_feature = "TES")
+          flank <- getFeature(b, start_feature = "TES", end_feature = "TES", start_flank = input$flank, end_flank = input$flank)
+        }
+      }
+      
+      if(input$getFeature == 4){
+        if(!is.null(input$Region2)){
+        flank <- getFeature(combined_b, start_flank = input$flank, end_flank = input$flank)
+        up <- getFeature(combined_b, start_flank = input$flank, end_feature = "TSS")
+        ex1 <- getFeature(combined_b, end_feature = "Exon", end_exon = 1, end_exon_boundary = "3prime")
+        in1 <- getFeature(combined_b, start_feature = "Exon", start_exon = 1,start_exon_boundary = "3prime",end_feature = "Exon",end_exon = 2,end_exon_boundary = "5prime")
+        body <- getFeature(combined_b, start_feature = "Exon",start_exon = 2,start_exon_boundary = "5prime")
+        down <- getFeature(combined_b, start_feature = "TES", end_flank = input$flank)
+        } else {
+          flank <- getFeature(b, start_flank = input$flank, end_flank = input$flank)
+          up <- getFeature(b, start_flank = input$flank, end_feature = "TSS")
+          ex1 <- getFeature(b, end_feature = "Exon", end_exon = 1, end_exon_boundary = "3prime")
+          in1 <- getFeature(b, start_feature = "Exon", start_exon = 1,start_exon_boundary = "3prime",end_feature = "Exon",end_exon = 2,end_exon_boundary = "5prime")
+          body <- getFeature(b, start_feature = "Exon",start_exon = 2,start_exon_boundary = "5prime")
+          down <- getFeature(b, start_feature = "TES", end_flank = input$flank)
+        }
       }
       
       # Filtering names of bigwig files
@@ -124,23 +195,38 @@ server <- function(input, output, session) {
       
       # Import bigwig files as a list
       
-      grl <- list("features" = features)
-      
       if(any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))){
         if(input$getFeature == 1){
+          grl <- list("features" = features)
           matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
           return(matl)
-        } else if(input$getFeature == 2 || input$getFeature == 3){
+        }
+        if(input$getFeature == 2 || input$getFeature == 3){
+          grl <- list("features" = features)
           matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
           return(matl)
         }
+        if (input$getFeature == 4){
+          grl <- list("up" = up, "exon1" = ex1, "intron1" = in1, "body" = body, "down" = down)
+          wins <- c("up" = input$up, "exon1" = input$exon1, "intron1" = input$intron1, "body" = input$body, "down" = input$down)
+          matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), wins = wins, strand = strand_reactive(), smooth = smooth_reactive())
+          return(matl)
+        }
+        
+        
       } else {
         if(input$getFeature == 1){
           matl <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
           return(matl)
-        } else if(input$getFeature == 2 || input$getFeature == 3){
+        }
+        if(input$getFeature == 2 || input$getFeature == 3){
           matl <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
           return(matl)
+        }
+        if(input$getFeature == 4){
+          grl <- list("up" = up, "exon1" = ex1, "intron1" = in1, "body" = body, "down" = down)
+          wins <- c("up" = input$up, "exon1" = input$exon1, "intron1" = input$intron1, "body" = input$body, "down" = input$down)
+          matl <- matList(bwf = bwf, grl = grl, names = names(fbw), wins = wins, strand = strand_reactive(), smooth = smooth_reactive())
         }
       }
     }})
@@ -202,6 +288,29 @@ server <- function(input, output, session) {
   
   # Creating reactive objects for the heatmaps customisation options
   
+  # Creating the conditional splitting object
+  split_reactive <- reactive({
+    req(input$split)
+    region_file <- input$Region1$datapath
+    region2_file <- input$Region2$datapath
+    b <- readBed(region_file)
+    b2 <- readBed(region2_file)
+    Anno <- data.frame(name = rownames(matl()[[1]])) |>
+      left_join(data.frame(name = b$name, b_group = input$Region1splitting), by = "name") |>
+      left_join(data.frame(name = b2$name, b2_group = input$Region2splitting), by = "name") |>
+      mutate(Group = coalesce(b_group, b2_group)) |>
+      select(name, Group) |>
+      column_to_rownames("name")
+    return(Anno)
+  })
+  
+  split_cols_reactive <- reactive({
+    anno_cols <- list(group = c(`input$Region1splitting` = "#DA4167", `input$Region2splitting` = "#083D77"))
+    return(anno_cols)
+  })
+  
+  # Creating other reactive objects for heatmap customisation
+
   selected_matrices_reactive <- reactive({
     req(input$selectedmatrices)
     
@@ -252,13 +361,19 @@ server <- function(input, output, session) {
         "Feature" = (2 * flank_reactive()) / windowsize_reactive(), 
         "Downstream" = flank_reactive() / windowsize_reactive()
       ))
-    } else if (input$getFeature == 2 || input$getFeature == 3) {
+    }
+    if (input$getFeature == 2 || input$getFeature == 3) {
       return(c(
         "Upstream" = flank_reactive() / windowsize_reactive(), 
         "Feature" = 1, 
         "Downstream" = flank_reactive() / windowsize_reactive()
       ))
-    } else {
+    }
+    if (input$getFeature == 4){
+      wins <- c("up" = input$up, "exon1" = input$exon1, "intron1" = input$intron1, "body" = input$body, "down" = input$down)
+      return(wins)
+    }
+    else {
       return(NULL)
     }
   })
@@ -269,17 +384,22 @@ server <- function(input, output, session) {
     
     if(input$getFeature == 1){
       x <- flank_reactive()
-      c(paste0("-", x, "b"), "TSS", "TES", paste0("+", x, "b"))
+      return(c(paste0("-", x, "b"), "TSS", "TES", paste0("+", x, "b")))
     }
     
-    else if(input$getFeature == 2){
+    if(input$getFeature == 2){
       x <- flank_reactive()
-      c(paste0("-", x, "b"), "TSS", paste0("+", x, "b"))
+      return(c(paste0("-", x, "b"), "TSS", paste0("+", x, "b")))
     }
     
-    else if(input$getFeature == 3){
+    if(input$getFeature == 3){
       x <- flank_reactive()
-      c(paste0("-", x, "b"), "TES", paste0("+", x, "b"))
+      return(c(paste0("-", x, "b"), "TES", paste0("+", x, "b")))
+    }
+    
+    if(input$getFeature == 4){
+      x <- flank_reactive()
+      return(c(paste0("-", x, "b"), paste0("+", x, "b")))
     }
   })
   
@@ -295,9 +415,36 @@ server <- function(input, output, session) {
   
   hml <- eventReactive(input$heatmapplotbutton, {
     req(selected_matrices_reactive())
-    hml <- hmList(matl = selected_matrices_reactive(), wins = wins_reactive(), col_fun = heatmap_col_fun_reactive(), axis_labels = axis_labels_reactive(), show_row_names = show_row_names_reactive(), min_quantile = heatmap_min_quantile_reactive(), max_quantile = heatmap_max_quantile_reactive(), ylim = c(0, max_ylim_reactive()))
+    
+    if (isTRUE(input$split)) {  # Ensure reactive context
+      hml <- hmList(
+        matl = selected_matrices_reactive(),
+        wins = wins_reactive(),
+        split = split_reactive(), 
+        split_cols = split_cols_reactive(), 
+        col_fun = heatmap_col_fun_reactive(),
+        axis_labels = axis_labels_reactive(), 
+        show_row_names = show_row_names_reactive(),
+        min_quantile = heatmap_min_quantile_reactive(), 
+        max_quantile = heatmap_max_quantile_reactive(),
+        ylim = c(0, max_ylim_reactive())
+      )
+    } else {
+      hml <- hmList(
+        matl = selected_matrices_reactive(),
+        wins = wins_reactive(),
+        col_fun = heatmap_col_fun_reactive(),
+        axis_labels = axis_labels_reactive(), 
+        show_row_names = show_row_names_reactive(),
+        min_quantile = heatmap_min_quantile_reactive(), 
+        max_quantile = heatmap_max_quantile_reactive(),
+        ylim = c(0, max_ylim_reactive())
+      )
+    }
+    
     return(hml)
   })
+  
   
   ## Download options for the heatmaps
   
@@ -375,13 +522,18 @@ server <- function(input, output, session) {
       x_range <- ncol(matl()[[1]])
       break_positions <- c(0,0.25,0.75,1) * x_range
     }
-    else if(input$getFeature == 2){
+    if(input$getFeature == 2){
       x_range <- ncol(matl()[[1]])
       break_positions <- c(0, 0.5, 1) * x_range
     }
-    else if(input$getFeature == 3){
+    if(input$getFeature == 3){
       x_range <- ncol(matl()[[1]])
       break_positions <- c(0, 0.5, 1) * x_range
+    }
+    if(input$getFeature == 4){
+      x_range <- ncol(matl()[[1]])
+      sum = input$up + input$exon1 + input$intron1 + input$body + input$down
+      break_positions <- c(0, (input$up/sum), ((input$exon1/sum) + (input$up/sum)), ((input$intron1/sum) + (input$exon1/sum) + (input$up/sum)), ((input$body/sum) + (input$intron1/sum) + (input$exon1/sum) + (input$up/sum)), 1) * x_range
     }
     
     return(break_positions)
@@ -395,14 +547,19 @@ server <- function(input, output, session) {
       c(paste0("-", x, "b"), "TSS", "TES", paste0("+", x, "b"))
     }
     
-    else if(input$getFeature == 2){
+    if(input$getFeature == 2){
       x <- flank_reactive()
       c(paste0("-", x, "b"), "TSS", paste0("+", x, "b"))
     }
     
-    else if(input$getFeature == 3){
+    if(input$getFeature == 3){
       x <- flank_reactive()
       c(paste0("-", x, "b"), "TES", paste0("+", x, "b"))
+    }
+    
+    if(input$getFeature == 4){
+      x <- flank_reactive()
+      c(paste0("-", x, "b"), "Exon 1", "Intron 1", "Body", "TES", paste0("+", x, "b"))
     }
   })
   
@@ -418,8 +575,13 @@ server <- function(input, output, session) {
   
   average_profile <- eventReactive(input$averageprofileplotbutton, {
     req(matl())
-    average_profile <- mplot(matl = selected_matrices_reactive(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
+    if(input$split){
+    average_profile <- mplot(matl = selected_matrices_reactive(), split = split_reactive(),colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
     return(average_profile)
+    } else {
+      average_profile <- mplot(matl = selected_matrices_reactive(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
+      return(average_profile)
+    }
   })
   
   ## Downloading average profile plots

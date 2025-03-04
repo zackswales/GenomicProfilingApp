@@ -19,6 +19,8 @@ library(viridis)
 library(tibble)
 library(cowplot)
 library(ComplexHeatmap)
+library(shiny)
+library(bslib)
 
 ## NOTES
 ## default to no strand?

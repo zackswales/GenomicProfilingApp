@@ -1,6 +1,3 @@
-library(shiny)
-library(bslib)
-
 # Source to the plottingFunctionsZack.R script
 source("~/GenomicProfilingApp/R/plottingFunctionsZack.R")
 

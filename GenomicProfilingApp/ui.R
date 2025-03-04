@@ -17,6 +17,11 @@ ui <- page_navbar(
       full_screen = FALSE,
       card_header("File Upload Requirements"),
       card_body("If intending on locating exons/introns ensure region file is either .bed12 format or .gtf/.gff format")
+    ),
+    card(
+      full_screen = FALSE,
+      card_header("Heatmap Splitting"),
+      card_body("If intending to split each heatmap - ensure there are two region files (e.g. a file for RP and nRP if intending to split by RP)")
     )
   ),
   
@@ -32,13 +37,21 @@ ui <- page_navbar(
           sidebar = sidebar(
             open = TRUE,
             width = 325,
-            title = "Matrix Generation",
+            title = "File Upload",
+            checkboxInput(
+              inputId = "split",
+              label = "Heatmap splitting",
+              value = FALSE
+            ),
             fileInput(
               inputId = "Region1",
               label = "Upload region files (.bed/.gtf)",
               accept = c(".bed", ".gtf"),
               multiple = TRUE
             ),
+            uiOutput("Region1splitting"),
+            uiOutput("conditionalRegion2"),
+            uiOutput("conditionalRegion2splitting"),
             fileInput(
               inputId = "Sequence1",
               label = "Upload sequence data files (.bw)",
@@ -71,16 +84,18 @@ ui <- page_navbar(
         title = "2. Feature Specification",
         div(
           style = "display: flex; justify-content: center; align-items: center; min-height: 50vh;", # Adjust min-height as needed
-          layout_column_wrap(
+          layout_columns(
+            columns = 3,
             width = "300px",
-            gap = "1rem",
             title = "Feature Specification",
             card(
+              height = "300px",
               card_header("Feature"),
-              radioButtons(
+              selectInput(
                 inputId = "getFeature",
                 label = "Specify feature of interest:",
-                choices = list("Full gene" = 1, "TSS" = 2, "TES" = 3)
+                choices = list("Full gene" = 1, "TSS" = 2, "TES" = 3, "Exon 1 + Intron 1 + Gene body" = 4),
+                selected = 1
               )
             ),
             card(
@@ -104,6 +119,42 @@ ui <- page_navbar(
                   value = 1
                 )
               )
+            ),
+            conditionalPanel(
+              condition = "input.getFeature == 4",
+              card(
+                card_header("Window size for features"),
+                numericInput(
+                  inputId = "up",
+                  label = "Upstream flank:",
+                  value = 20,
+                  step = 10
+                ),
+                numericInput(
+                  inputId = "exon1",
+                  label = "Exon 1:",
+                  value = 50,
+                  step = 10
+                ),
+                numericInput(
+                  inputId = "intron1",
+                  label = "Intron 1:",
+                  value = 50,
+                  step = 10
+                ),
+                numericInput(
+                  inputId = "body",
+                  label = "Gene body:",
+                  value = 50,
+                  step = 10
+                ),
+                numericInput(
+                  inputId = "down",
+                  label = "Downstream flank",
+                  value = 20,
+                  step = 10
+                )
+              )
             )
           )
         )
@@ -111,7 +162,7 @@ ui <- page_navbar(
       
       # Further Customisation Panel
       nav_panel(
-        title = "3. Further Customisation",
+        title = "3. Further Customisation + Matrix Generation",
         layout_sidebar(
           sidebar = sidebar(
             open = TRUE,
