@@ -177,6 +177,7 @@ ui <- page_navbar(
               inputId = "matrixgeneration",
               label = "Generate Matrices"
             ),
+            verbatimTextOutput("matrixResult"),
             helpText("Warning: only click once as matrix generation takes a few seconds to complete"),
             actionButton(
               inputId = "savematrices",

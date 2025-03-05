@@ -3,8 +3,13 @@ server <- function(input, output, session) {
   ## Data processing
   
   output$regionfile1_name <- renderText({
-    if(!is.null(input$Region1)) {
-      paste(input$Region1$name, collapse = ", ")
+    region1_names <- if (!is.null(input$Region1)) input$Region1$name else NULL
+    region2_names <- if (!is.null(input$Region2)) input$Region2$name else NULL
+    
+    if (!is.null(region1_names) && !is.null(region2_names)) {
+      paste(c(region1_names, region2_names), collapse = ", ")
+    } else if (!is.null(region1_names)) {
+      paste(region1_names, collapse = ", ")
     } else {
       "No files uploaded"
     }
@@ -79,12 +84,6 @@ server <- function(input, output, session) {
     }
   })
   
-  observe({
-    if (input$matrixgeneration > 0) {
-      showNotification("Generating matrices...", type = "message")
-    }
-  })
-  
   
   # Matrix list generation
   
@@ -92,142 +91,111 @@ server <- function(input, output, session) {
   matl <- eventReactive(input$matrixgeneration, {
     req(input$Region1, input$Sequence1)
     
-    if(region_files_count() == 1){
-      region_file <- input$Region1$datapath
-      if(!is.null(input$Region2)){
-        region2_file <- input$Region2$datapath
-      }
-      bigwig_files <- input$Sequence1$datapath
-      bigwig_file_names <- input$Sequence1$name
+    withProgress(message = "Matrix Generation", value = 0, {
       
-      print(paste("BED/GTF File Path:", region_file))
-      print(paste("BigWig File Path(s):", paste(bigwig_files, collapse = ", ")))
-      
-      # Import region files and get features
-      
-      b <- readBed(region_file)
-      if(!is.null(input$Region2)){
-        b2 <- readBed(region2_file)
-        combined_b <- c(b, b2)
-      }
-      
-      if(input$getFeature == 1){
-        if(!is.null(input$Region2)){
-        features <- getFeature(combined_b, start_feature = "TSS", end_feature = "TES")
-        flank <- getFeature(combined_b, start_flank = input$flank, end_flank = input$flank)
+      if (region_files_count() == 1) {
+        region_file <- input$Region1$datapath
+        region2_file <- if (!is.null(input$Region2)) input$Region2$datapath else NULL
+        bigwig_files <- input$Sequence1$datapath
+        bigwig_file_names <- input$Sequence1$name
+        
+        print(paste("BED/GTF File Path:", region_file))
+        print(paste("BigWig File Path(s):", paste(bigwig_files, collapse = ", ")))
+        
+        # Import region files and get features
+        b <- readBed(region_file)
+        if(grepl("\\.bed$", region_file)){
+          b <- readBed(region_file)
+        } else if (grepl("\\.gtf", region_file)) {
+          b <- import(region_file)
+        }
+        
+        combined_b <- if (!is.null(region2_file)) c(b, readBed(region2_file)) else b
+        
+        incProgress(0.1, detail = "Reading region files...")
+        
+        if (input$getFeature == 1) {
+          features <- getFeature(combined_b, start_feature = "TSS", end_feature = "TES")
+          flank <- getFeature(combined_b, start_flank = input$flank, end_flank = input$flank)
+        } else if (input$getFeature == 2) {
+          features <- getFeature(combined_b, start_feature = "TSS", end_feature = "TSS")
+          flank <- getFeature(combined_b, start_feature = "TSS", end_feature = "TSS", start_flank = input$flank, end_flank = input$flank)
+        } else if (input$getFeature == 3) {
+          features <- getFeature(combined_b, start_feature = "TES", end_feature = "TES")
+          flank <- getFeature(combined_b, start_feature = "TES", end_feature = "TES", start_flank = input$flank, end_flank = input$flank)
+        } else if (input$getFeature == 4) {
+          flank <- getFeature(combined_b, start_flank = input$flank, end_flank = input$flank)
+          up <- getFeature(combined_b, start_flank = input$flank, end_feature = "TSS")
+          ex1 <- getFeature(combined_b, end_feature = "Exon", end_exon = 1, end_exon_boundary = "3prime")
+          in1 <- getFeature(combined_b, start_feature = "Exon", start_exon = 1, start_exon_boundary = "3prime", end_feature = "Exon", end_exon = 2, end_exon_boundary = "5prime")
+          body <- getFeature(combined_b, start_feature = "Exon", start_exon = 2, start_exon_boundary = "5prime")
+          down <- getFeature(combined_b, start_feature = "TES", end_flank = input$flank)
+        }
+        
+        incProgress(0.2, detail = "Getting features...")
+        
+        # Filtering names of bigwig files
+        if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
+          fbw <- bigwig_files[grepl("\\.f\\.bw$", bigwig_file_names)]
+          rbw <- bigwig_files[grepl("\\.r\\.bw$", bigwig_file_names)]
+          
+          if (length(fbw) > 0) {
+            names(fbw) <- sub("\\.f\\.bw$", "", bigwig_file_names[grepl("\\.f\\.bw$", bigwig_file_names)])
+            bwf <- importBWlist(fbw, names(fbw), selection = flank)
+          }
+          
+          if (length(rbw) > 0 && length(fbw) > 0) {
+            names(rbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
+            bwr <- importBWlist(rbw, names(rbw), selection = flank)
+          }
+          
+          if (length(fbw) <= 0 && length(rbw) > 0) {
+            fbw <- rbw
+            names(fbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
+            bwf <- importBWlist(fbw, names(fbw), selection = flank)
+          }
         } else {
-          features <- getFeature(b, start_feature = "TSS", end_feature = "TES")
-          flank <- getFeature(b, start_flank = input$flank, end_flank = input$flank)
+          fbw <- bigwig_files[grepl("\\.bw$", bigwig_file_names)]
+          if (length(fbw) > 0) {
+            names(fbw) <- sub("\\.bw$", "", bigwig_file_names[grepl("\\.bw$", bigwig_file_names)])
+            bwf <- importBWlist(fbw, names(fbw), selection = flank)
+          }
         }
-      }
-      
-      if(input$getFeature == 2){
-        if(!is.null(input$Region2)){
-        features <- getFeature(combined_b, start_feature = "TSS", end_feature = "TSS")
-        flank <- getFeature(combined_b, start_feature = "TSS", end_feature = "TSS", start_flank = input$flank, end_flank = input$flank)
+        
+        incProgress(0.5, detail = "Generating matrices")
+        
+        # Import bigwig files as a list
+        if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
+          if (input$getFeature == 1) {
+            grl <- list("features" = features)
+            matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
+          } else if (input$getFeature == 2 || input$getFeature == 3) {
+            grl <- list("features" = features)
+            matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
+          } else if (input$getFeature == 4) {
+            grl <- list("up" = up, "exon1" = ex1, "intron1" = in1, "body" = body, "down" = down)
+            wins <- c("up" = input$up, "exon1" = input$exon1, "intron1" = input$intron1, "body" = input$body, "down" = input$down)
+            matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), wins = wins, strand = strand_reactive(), smooth = smooth_reactive())
+          }
         } else {
-          features <- getFeature(b, start_feature = "TSS", end_feature = "TSS")
-          flank <- getFeature(b, start_feature = "TSS", end_feature = "TSS", start_flank = input$flank, end_flank = input$flank)
-        }
-      }
-      
-      if(input$getFeature == 3){
-        if(!is.null(input$Region2)){
-        features <- getFeature(combined_b, start_feature = "TES", end_feature = "TES")
-        flank <- getFeature(combined_b, start_feature = "TES", end_feature = "TES", start_flank = input$flank, end_flank = input$flank)
-        } else {
-          features <- getFeature(b, start_feature = "TES", end_feature = "TES")
-          flank <- getFeature(b, start_feature = "TES", end_feature = "TES", start_flank = input$flank, end_flank = input$flank)
-        }
-      }
-      
-      if(input$getFeature == 4){
-        if(!is.null(input$Region2)){
-        flank <- getFeature(combined_b, start_flank = input$flank, end_flank = input$flank)
-        up <- getFeature(combined_b, start_flank = input$flank, end_feature = "TSS")
-        ex1 <- getFeature(combined_b, end_feature = "Exon", end_exon = 1, end_exon_boundary = "3prime")
-        in1 <- getFeature(combined_b, start_feature = "Exon", start_exon = 1,start_exon_boundary = "3prime",end_feature = "Exon",end_exon = 2,end_exon_boundary = "5prime")
-        body <- getFeature(combined_b, start_feature = "Exon",start_exon = 2,start_exon_boundary = "5prime")
-        down <- getFeature(combined_b, start_feature = "TES", end_flank = input$flank)
-        } else {
-          flank <- getFeature(b, start_flank = input$flank, end_flank = input$flank)
-          up <- getFeature(b, start_flank = input$flank, end_feature = "TSS")
-          ex1 <- getFeature(b, end_feature = "Exon", end_exon = 1, end_exon_boundary = "3prime")
-          in1 <- getFeature(b, start_feature = "Exon", start_exon = 1,start_exon_boundary = "3prime",end_feature = "Exon",end_exon = 2,end_exon_boundary = "5prime")
-          body <- getFeature(b, start_feature = "Exon",start_exon = 2,start_exon_boundary = "5prime")
-          down <- getFeature(b, start_feature = "TES", end_flank = input$flank)
-        }
-      }
-      
-      # Filtering names of bigwig files
-      
-      if(any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
-        fbw <- bigwig_files[grepl("\\.f\\.bw$", bigwig_file_names)]
-        rbw <- bigwig_files[grepl("\\.r\\.bw$", bigwig_file_names)]
-        
-        # Assign names ONLY if fbw or rbw is non-empty
-        if (length(fbw) > 0) {
-          names(fbw) <- sub("\\.f\\.bw$", "", bigwig_file_names[grepl("\\.f\\.bw$", bigwig_file_names)])
-          bwf <- importBWlist(fbw, names(fbw), selection = flank)
+          if (input$getFeature == 1) {
+            grl <- list("features" = features)
+            matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
+          } else if (input$getFeature == 2 || input$getFeature == 3) {
+            grl <- list("features" = features)
+            matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
+          } else if (input$getFeature == 4) {
+            grl <- list("up" = up, "exon1" = ex1, "intron1" = in1, "body" = body, "down" = down)
+            wins <- c("up" = input$up, "exon1" = input$exon1, "intron1" = input$intron1, "body" = input$body, "down" = input$down)
+            matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), wins = wins, strand = strand_reactive(), smooth = smooth_reactive())
+          }
         }
         
-        if (length(rbw) > 0 && length(fbw) > 0) {
-          names(rbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
-          bwr <- importBWlist(rbw, names(rbw), selection = flank)
-        }
-        
-        if (length(fbw) <= 0 && length(rbw) > 0){
-          fbw <- rbw
-          names(fbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
-          bwf <- importBWlist(fbw, names(fbw), selection = flank)
-        }
-      } else {
-        fbw <- bigwig_files[grepl("\\.bw$", bigwig_file_names)]
-        if (length(fbw) > 0) {
-          names(fbw) <- sub("\\.bw$", "", bigwig_file_names[grepl("\\.bw$", bigwig_file_names)])
-          bwf <- importBWlist(fbw, names(fbw), selection = flank)
-        }
+        incProgress(0.9, detail = "Almost finished...")
+        return(matl_result)
       }
-      
-      
-      
-      # Import bigwig files as a list
-      
-      if(any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))){
-        if(input$getFeature == 1){
-          grl <- list("features" = features)
-          matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
-          return(matl)
-        }
-        if(input$getFeature == 2 || input$getFeature == 3){
-          grl <- list("features" = features)
-          matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
-          return(matl)
-        }
-        if (input$getFeature == 4){
-          grl <- list("up" = up, "exon1" = ex1, "intron1" = in1, "body" = body, "down" = down)
-          wins <- c("up" = input$up, "exon1" = input$exon1, "intron1" = input$intron1, "body" = input$body, "down" = input$down)
-          matl <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), wins = wins, strand = strand_reactive(), smooth = smooth_reactive())
-          return(matl)
-        }
-        
-        
-      } else {
-        if(input$getFeature == 1){
-          matl <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
-          return(matl)
-        }
-        if(input$getFeature == 2 || input$getFeature == 3){
-          matl <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
-          return(matl)
-        }
-        if(input$getFeature == 4){
-          grl <- list("up" = up, "exon1" = ex1, "intron1" = in1, "body" = body, "down" = down)
-          wins <- c("up" = input$up, "exon1" = input$exon1, "intron1" = input$intron1, "body" = input$body, "down" = input$down)
-          matl <- matList(bwf = bwf, grl = grl, names = names(fbw), wins = wins, strand = strand_reactive(), smooth = smooth_reactive())
-        }
-      }
-    }})
+    })
+  })
   
   
   output$matrixnames <- renderText({
@@ -404,6 +372,12 @@ server <- function(input, output, session) {
   
   # Creating the heatmaps
   
+  observe ({
+    if (input$heatmapplotbutton > 0) {
+      showNotification("Plotting output...", type = "message")
+    }
+  })
+  
   output$enrichedHeatmapPlot <- renderPlot({
     req(hml())
     req(length(hml()) > 0)
@@ -572,6 +546,11 @@ server <- function(input, output, session) {
   
   # ggplot Heatmaps
 
+  observe ({
+    if (input$ggplotheatmapplotbutton > 0) {
+      showNotification("Plotting output...", type = "message")
+    }
+  })
   
   output$ggplotHeatmapPlot <- renderPlot({
     req(gghml())
@@ -728,6 +707,12 @@ server <- function(input, output, session) {
   
   
   # Creating the average profile plot
+  
+  observe ({
+    if (input$averageprofileplotbutton > 0) {
+      showNotification("Plotting output...", type = "message")
+    }
+  })
   
   output$averageprofileplot <- renderPlot({
     req(average_profile())
