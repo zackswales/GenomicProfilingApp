@@ -106,11 +106,9 @@ server <- function(input, output, session) {
       # Import region files and get features
       
       b <- readBed(region_file)
-      print(head(b))
       if(!is.null(input$Region2)){
         b2 <- readBed(region2_file)
         combined_b <- c(b, b2)
-        print(head(b2))
       }
       
       if(input$getFeature == 1){
@@ -284,7 +282,7 @@ server <- function(input, output, session) {
     )
   })
   
-  ### Heatmaps
+  ### enrichedHeatmap Heatmaps
   
   # Creating reactive objects for the heatmaps customisation options
   
@@ -446,7 +444,7 @@ server <- function(input, output, session) {
   })
   
   
-  ## Download options for the heatmaps
+  ## Download options for the enrichedHeatmap heatmaps
   
   output$heatmapdownloadpng <- downloadHandler(
     filename = function() { paste("heatmap_", Sys.Date(), ".png", sep="") },
@@ -491,6 +489,170 @@ server <- function(input, output, session) {
       dev.off()  
     }
   )
+  
+  
+  ## ggplot Heatmaps
+  
+  # Reactive customisation options for the heatmaps
+  
+  ggshow_row_names_reactive <- reactive({
+    input$ggshowrownames
+  })
+  
+  ggheatmap_col_fun_reactive <- reactive({
+    switch(input$ggheatmap_col_fun,
+           "1" = "red",
+           "2" = "bl2rd",
+           "3" = "red0")
+  })
+  
+  ggheatmap_min_quantile_reactive <- reactive({
+    input$ggheatmapquantiles[1]
+  })
+  
+  ggheatmap_max_quantile_reactive <- reactive({
+    input$ggheatmapquantiles[2]
+  })
+  
+  ggmax_ylim_reactive <- reactive({
+    input$ggmaxylim
+  })
+  
+  ggwins_reactive <- reactive({
+    req(flank_reactive(), windowsize_reactive())
+    
+    if (input$getFeature == 1) {
+      return(c(
+        "Upstream" = flank_reactive() / windowsize_reactive(), 
+        "Feature" = (2 * flank_reactive()) / windowsize_reactive(), 
+        "Downstream" = flank_reactive() / windowsize_reactive()
+      ))
+    }
+    if (input$getFeature == 2 || input$getFeature == 3) {
+      return(c(
+        "Upstream" = flank_reactive() / windowsize_reactive(), 
+        "Feature" = 1, 
+        "Downstream" = flank_reactive() / windowsize_reactive()
+      ))
+    }
+    if (input$getFeature == 4){
+      wins <- c("up" = input$up, "exon1" = input$exon1, "intron1" = input$intron1, "body" = input$body, "down" = input$down)
+      return(wins)
+    }
+    else {
+      return(NULL)
+    }
+  })
+  
+  
+  ggaxis_labels_reactive <- reactive({
+    req(flank_reactive(), input$getFeature)
+    
+    if(input$getFeature == 1){
+      x <- flank_reactive()
+      return(c(paste0("-", x, "b"), "TSS", "TES", paste0("+", x, "b")))
+    }
+    
+    if(input$getFeature == 2){
+      x <- flank_reactive()
+      return(c(paste0("-", x, "b"), "TSS", paste0("+", x, "b")))
+    }
+    
+    if(input$getFeature == 3){
+      x <- flank_reactive()
+      return(c(paste0("-", x, "b"), "TES", paste0("+", x, "b")))
+    }
+    
+    if(input$getFeature == 4){
+      x <- flank_reactive()
+      return(c(paste0("-", x, "b"), paste0("+", x, "b")))
+    }
+  })
+  
+  
+  # ggplot Heatmaps
+
+  
+  output$ggplotHeatmapPlot <- renderPlot({
+    req(gghml())
+    req(length(gghml()) > 0)
+    combined_plot <- wrap_plots(gghml(), nrow = 1) 
+    print(combined_plot)
+  })
+  
+  gghml <- eventReactive(input$ggplotheatmapplotbutton, {
+    req(selected_matrices_reactive())
+    
+    if(isTRUE(input$split)) {
+      gghml <- gghmList(
+        matl = selected_matrices_reactive(),
+        wins = ggwins_reactive(),
+        split = split_reactive(),
+        split_cols = split_cols_reactive(),
+        col_fun = ggheatmap_col_fun_reactive(),
+        axis_labels = ggaxis_labels_reactive(),
+        show_row_names = ggshow_row_names_reactive(),
+        min_quantile = ggheatmap_min_quantile_reactive(),
+        max_quantile = ggheatmap_max_quantile_reactive()
+      )
+    } else {
+      gghml <- gghmList(
+        matl = selected_matrices_reactive(),
+        wins = ggwins_reactive(),
+        col_fun = ggheatmap_col_fun_reactive(),
+        axis_labels = ggaxis_labels_reactive(),
+        show_row_names = ggshow_row_names_reactive(),
+        min_quantile = ggheatmap_min_quantile_reactive(),
+        max_quantile = ggheatmap_max_quantile_reactive()
+      )
+    }
+    
+    return(gghml)
+  })
+  
+  output$ggplotheatmapdownloadpng <- downloadHandler(
+    filename = function() { paste("ggplotheatmap_", Sys.Date(), ".png", sep="") },
+    content = function(file) {
+      png(file, width = 1350, height = 900, res = 150)
+      gghml <- gghmList(
+        matl = selected_matrices_reactive(),
+        wins = ggwins_reactive(),
+        col_fun = ggheatmap_col_fun_reactive(),
+        axis_labels = ggaxis_labels_reactive(),
+        show_row_names = ggshow_row_names_reactive(),
+        min_quantile = ggheatmap_min_quantile_reactive(),
+        max_quantile = ggheatmap_max_quantile_reactive()
+      )
+      req(length(gghml()) > 0)
+      combined_plot <- wrap_plots(gghml(), nrow = 1) 
+      
+      print(combined_plot)
+      dev.off()
+    }
+  )
+  
+  output$ggplotheatmapdownloadpdf <- downloadHandler(
+    filename = function() { paste("ggplotheatmap_", Sys.Date(), ".pdf", sep="") },
+    content = function(file) {
+      pdf(file, width = 13.5, height = 9)
+      gghml <- gghmList(
+        matl = selected_matrices_reactive(),
+        wins = ggwins_reactive(),
+        col_fun = ggheatmap_col_fun_reactive(),
+        axis_labels = ggaxis_labels_reactive(),
+        show_row_names = ggshow_row_names_reactive(),
+        min_quantile = ggheatmap_min_quantile_reactive(),
+        max_quantile = ggheatmap_max_quantile_reactive()
+      )
+      req(length(gghml()) > 0)
+      combined_plot <- wrap_plots(gghml(), nrow = 1) 
+      
+      print(combined_plot)
+      dev.off()
+    }
+  )
+  
+  
   
   ## Average profile plot
   

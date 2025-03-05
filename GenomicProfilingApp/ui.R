@@ -294,6 +294,43 @@ ui <- page_navbar(
           sidebar = sidebar(
             open = TRUE,
             title = "Heatmap Customisation",
+            radioButtons(
+              inputId = "ggheatmap_col_fun",
+              label = "Select colour scheme:",
+              choices = list("White to red" = 1, "Blue to red" = 2, "Red scale" = 3),
+              selected = 1
+            ),
+            sliderInput(
+              inputId = "ggheatmapquantiles",
+              label = "Set quantile range:",
+              min = 0,
+              max = 0.99,
+              value = c(0,0.99)
+            ),
+            checkboxInput(
+              inputId = "ggshowrownames",
+              label = "Show row names",
+              value = FALSE
+            ),
+            actionButton(
+              inputId = "ggplotheatmapplotbutton",
+              label = "Plot Output"
+            ),
+            helpText("Output plotting will take a few seconds"),
+            helpText("Use download buttons after clicking Plot Output"),
+            downloadButton(
+              outputId = "ggplotheatmapdownloadpng",
+              label = "Download as .png"
+            ),
+            downloadButton(
+              outputId = "ggplotheatmapdownloadpdf",
+              label = "Download as .pdf"
+            )
+          ),
+          card(
+            full_screen = TRUE,
+            card_header("Heatmap Visualisation"),
+            card_body(plotOutput("ggplotHeatmapPlot"))
           )
         )
       ),

@@ -327,7 +327,7 @@ mplot<-function(matl,matlc=NULL,feature = "Gene", unit = "Coverage (BPM)", title
 
 # Creating a function for converting heatmap to a ggplot object
 
-gghml <- function(matl, wins, split = NULL, split_cols = NULL, max_quantile = 0.99, min_quantile = 0, col_fun = "red", show_row_names = TRUE, win_labels = NULL, ylim = NULL, summarise_by = "mean", axis_labels = "") {
+gghmList <- function(matl, wins, split = NULL, split_cols = NULL, max_quantile = 0.99, min_quantile = 0, col_fun = "red", show_row_names = TRUE, win_labels = NULL, ylim = NULL, summarise_by = "mean", axis_labels = "") {
   
   reds <- brewer.pal(n = 9, name = "Reds")
   
