@@ -221,10 +221,9 @@ ui <- page_navbar(
       # Matrix selection tab
       nav_panel(
         title = "Matrix selection",
-        layout_sidebar(
-          sidebar = sidebar(
-            open = TRUE,
-            title = "Select matrices for plotting:",
+        card(
+          card_header("Matrix selection"),
+          card_body(
             checkboxGroupInput(
               inputId = "selectedmatrices",
               label = "Select all that apply:",
@@ -236,7 +235,7 @@ ui <- page_navbar(
       
       # Heatmap Panel
       nav_panel(
-        title = "Heatmap",
+        title = "EnrichedHeatmap Heatmap",
         layout_sidebar(
           sidebar = sidebar(
             open = TRUE, 
@@ -284,6 +283,17 @@ ui <- page_navbar(
             full_screen = TRUE,
             card_header("Heatmap Visualisation"),
             card_body(plotOutput("enrichedHeatmapPlot"))
+          )
+        )
+      ),
+      
+      # ggplot Heatmap Panel
+      nav_panel(
+        title = "ggplot Heatmap",
+        layout_sidebar(
+          sidebar = sidebar(
+            open = TRUE,
+            title = "Heatmap Customisation",
           )
         )
       ),
