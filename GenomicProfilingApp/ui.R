@@ -32,7 +32,7 @@ ui <- page_navbar(
       
       # File Upload Panel
       nav_panel(
-        title = "1. File Upload",
+        title = "1. Input Selection",
         layout_sidebar(
           sidebar = sidebar(
             open = TRUE,
@@ -43,12 +43,21 @@ ui <- page_navbar(
               label = "Heatmap splitting",
               value = FALSE
             ),
+            checkboxInput(
+              inputId = "databasefetch",
+              label = "Fetch database annotation",
+              value = FALSE
+            ),
             fileInput(
               inputId = "Region1",
               label = "Upload region files (.bed/.gtf)",
               accept = c(".bed", ".gtf"),
               multiple = TRUE
             ),
+            uiOutput("pickgenome"),
+            uiOutput("pickgroup"),
+            uiOutput("picktrack"),
+            uiOutput("getannotation"),
             uiOutput("Region1splitting"),
             uiOutput("conditionalRegion2"),
             uiOutput("conditionalRegion2splitting"),
@@ -68,8 +77,16 @@ ui <- page_navbar(
           ),
           card(
             full_screen = FALSE,
-            card_header("Uploaded Region Files"),
+            card_header("Region Files"),
             card_body(textOutput("regionfile1_name"))
+          ),
+          conditionalPanel(
+            condition = "input.databasefetch == 1",
+            card(
+              full_screen = FALSE,
+              card_header("Fetched annotation files"),
+              card_body(textOutput("annotationname"))
+            )
           ),
           card(
             full_screen = FALSE,
@@ -178,7 +195,6 @@ ui <- page_navbar(
               label = "Generate Matrices"
             ),
             verbatimTextOutput("matrixResult"),
-            helpText("Warning: only click once as matrix generation takes a few seconds to complete"),
             actionButton(
               inputId = "savematrices",
               label = "Save Matrices"

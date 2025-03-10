@@ -15,6 +15,48 @@ server <- function(input, output, session) {
     }
   })
   
+  output$pickgenome <- renderUI({
+    if(input$databasefetch){
+      selectInput(
+        inputId = "genome",
+        label = "Select genome:",
+        choices = c("S.cerevisiae sacCer3" = 1),
+        selected = 1
+      )
+    }
+  })
+  
+  output$pickgroup <- renderUI({
+    if(input$databasefetch){
+      selectInput(
+        inputId = "group",
+        label = "Select group:",
+        choices = c("genes" = 1),
+        selected = 1
+      )
+    }
+  })
+  
+  output$picktrack <- renderUI({
+    if(input$databasefetch){
+      selectInput(
+        inputId = "track",
+        label = "Select track:",
+        choices = c("Structure" = 1, "Repeats" = 2, "Mutations" = 3),
+        selected = 1
+      )
+    }
+  })
+  
+  output$getannotation <- renderUI({
+    if(input$databasefetch){
+      actionButton(
+        inputId = "fetchannotation",
+        label = "Fetch annotation file"
+      )
+    }
+  })
+  
   output$Region1splitting <- renderUI({
     if(input$split){
       textInput(
@@ -42,6 +84,52 @@ server <- function(input, output, session) {
         label = "Splitting identifier in second region file"
       )
     }
+  })
+  
+  # Fetching the data from UCSC
+  
+  genome_reactive <- reactive({
+    value <- switch(input$genome,
+                    "1" = "sacCer3")
+  })
+  
+  track_reactive <- reactive({
+    value <- switch(input$track,
+                    "1" = "unipStruct",
+                    "2" = "unipRepeat",
+                    "3" = "unipMut")
+  })
+  
+  observeEvent(input$fetchannotation, {
+    showNotification("Fetching annotation...", type = "message")
+  })
+  
+  observeEvent(input$fetchannotation, {
+    # Add other debugging print statements here
+  })
+  
+  gr <- eventReactive(input$fetchannotation, {
+    
+    fetch <- fetch_UCSC_track_data(genome_reactive(), track_reactive())
+    
+    GRanges(
+      seqnames = fetch$chrom,
+      ranges = IRanges(start = fetch$chromStart + 1, end = fetch$chromEnd),
+      strand = fetch$strand,
+      score = fetch$score,
+      name = fetch$name,
+      thickStart = as.integer(fetch$thickStart + 1), # Add +1 for 1-based coordinates
+      thickEnd = fetch$thickEnd,
+      itemRgb = as.integer(0),
+      blockCount = fetch$blockCount,
+      blockSizes = fetch$blockSizes,
+      blockStarts = as.character(0)
+    )
+  })
+  
+  output$annotationname <- renderPrint({
+    req(gr())
+    paste(genome_reactive(), track_reactive())
   })
   
   region_files_count <- reactive({
@@ -89,111 +177,109 @@ server <- function(input, output, session) {
   
   
   matl <- eventReactive(input$matrixgeneration, {
-    req(input$Region1, input$Sequence1)
+    req(input$Sequence1)
     
     withProgress(message = "Matrix Generation", value = 0, {
       
-      if (region_files_count() == 1) {
-        region_file <- input$Region1$datapath
-        region2_file <- if (!is.null(input$Region2)) input$Region2$datapath else NULL
-        bigwig_files <- input$Sequence1$datapath
-        bigwig_file_names <- input$Sequence1$name
-        
-        print(paste("BED/GTF File Path:", region_file))
-        print(paste("BigWig File Path(s):", paste(bigwig_files, collapse = ", ")))
-        
-        # Import region files and get features
+      region_file <- if (!is.null(input$Region1)) input$Region1$datapath else NULL
+      region2_file <- if (!is.null(input$Region2)) input$Region2$datapath else NULL
+      bigwig_files <- input$Sequence1$datapath
+      bigwig_file_names <- input$Sequence1$name
+      
+      print(paste("BED/GTF File Path:", region_file))
+      print(paste("BigWig File Path(s):", paste(bigwig_files, collapse = ", ")))
+      
+      # Import region files and get features
+      
+      if (!is.null(input$Region1)){
         b <- readBed(region_file)
-        if(grepl("\\.bed$", region_file)){
-          b <- readBed(region_file)
-        } else if (grepl("\\.gtf", region_file)) {
-          b <- import(region_file)
-        }
-        
         combined_b <- if (!is.null(region2_file)) c(b, readBed(region2_file)) else b
-        
-        incProgress(0.1, detail = "Reading region files...")
-        
-        if (input$getFeature == 1) {
-          features <- getFeature(combined_b, start_feature = "TSS", end_feature = "TES")
-          flank <- getFeature(combined_b, start_flank = input$flank, end_flank = input$flank)
-        } else if (input$getFeature == 2) {
-          features <- getFeature(combined_b, start_feature = "TSS", end_feature = "TSS")
-          flank <- getFeature(combined_b, start_feature = "TSS", end_feature = "TSS", start_flank = input$flank, end_flank = input$flank)
-        } else if (input$getFeature == 3) {
-          features <- getFeature(combined_b, start_feature = "TES", end_feature = "TES")
-          flank <- getFeature(combined_b, start_feature = "TES", end_feature = "TES", start_flank = input$flank, end_flank = input$flank)
-        } else if (input$getFeature == 4) {
-          flank <- getFeature(combined_b, start_flank = input$flank, end_flank = input$flank)
-          up <- getFeature(combined_b, start_flank = input$flank, end_feature = "TSS")
-          ex1 <- getFeature(combined_b, end_feature = "Exon", end_exon = 1, end_exon_boundary = "3prime")
-          in1 <- getFeature(combined_b, start_feature = "Exon", start_exon = 1, start_exon_boundary = "3prime", end_feature = "Exon", end_exon = 2, end_exon_boundary = "5prime")
-          body <- getFeature(combined_b, start_feature = "Exon", start_exon = 2, start_exon_boundary = "5prime")
-          down <- getFeature(combined_b, start_feature = "TES", end_flank = input$flank)
-        }
-        
-        incProgress(0.2, detail = "Getting features...")
-        
-        # Filtering names of bigwig files
-        if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
-          fbw <- bigwig_files[grepl("\\.f\\.bw$", bigwig_file_names)]
-          rbw <- bigwig_files[grepl("\\.r\\.bw$", bigwig_file_names)]
-          
-          if (length(fbw) > 0) {
-            names(fbw) <- sub("\\.f\\.bw$", "", bigwig_file_names[grepl("\\.f\\.bw$", bigwig_file_names)])
-            bwf <- importBWlist(fbw, names(fbw), selection = flank)
-          }
-          
-          if (length(rbw) > 0 && length(fbw) > 0) {
-            names(rbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
-            bwr <- importBWlist(rbw, names(rbw), selection = flank)
-          }
-          
-          if (length(fbw) <= 0 && length(rbw) > 0) {
-            fbw <- rbw
-            names(fbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
-            bwf <- importBWlist(fbw, names(fbw), selection = flank)
-          }
-        } else {
-          fbw <- bigwig_files[grepl("\\.bw$", bigwig_file_names)]
-          if (length(fbw) > 0) {
-            names(fbw) <- sub("\\.bw$", "", bigwig_file_names[grepl("\\.bw$", bigwig_file_names)])
-            bwf <- importBWlist(fbw, names(fbw), selection = flank)
-          }
-        }
-        
-        incProgress(0.5, detail = "Generating matrices")
-        
-        # Import bigwig files as a list
-        if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
-          if (input$getFeature == 1) {
-            grl <- list("features" = features)
-            matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
-          } else if (input$getFeature == 2 || input$getFeature == 3) {
-            grl <- list("features" = features)
-            matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
-          } else if (input$getFeature == 4) {
-            grl <- list("up" = up, "exon1" = ex1, "intron1" = in1, "body" = body, "down" = down)
-            wins <- c("up" = input$up, "exon1" = input$exon1, "intron1" = input$intron1, "body" = input$body, "down" = input$down)
-            matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), wins = wins, strand = strand_reactive(), smooth = smooth_reactive())
-          }
-        } else {
-          if (input$getFeature == 1) {
-            grl <- list("features" = features)
-            matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
-          } else if (input$getFeature == 2 || input$getFeature == 3) {
-            grl <- list("features" = features)
-            matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
-          } else if (input$getFeature == 4) {
-            grl <- list("up" = up, "exon1" = ex1, "intron1" = in1, "body" = body, "down" = down)
-            wins <- c("up" = input$up, "exon1" = input$exon1, "intron1" = input$intron1, "body" = input$body, "down" = input$down)
-            matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), wins = wins, strand = strand_reactive(), smooth = smooth_reactive())
-          }
-        }
-        
-        incProgress(0.9, detail = "Almost finished...")
-        return(matl_result)
+      } else if (is.null(input$Region1)) {
+        combined_b <- gr()
       }
+      
+      
+      incProgress(0.1, detail = "Reading region files...")
+      
+      if (input$getFeature == 1) {
+        features <- getFeature(combined_b, start_feature = "TSS", end_feature = "TES")
+        flank <- getFeature(combined_b, start_flank = input$flank, end_flank = input$flank)
+      } else if (input$getFeature == 2) {
+        features <- getFeature(combined_b, start_feature = "TSS", end_feature = "TSS")
+        flank <- getFeature(combined_b, start_feature = "TSS", end_feature = "TSS", start_flank = input$flank, end_flank = input$flank)
+      } else if (input$getFeature == 3) {
+        features <- getFeature(combined_b, start_feature = "TES", end_feature = "TES")
+        flank <- getFeature(combined_b, start_feature = "TES", end_feature = "TES", start_flank = input$flank, end_flank = input$flank)
+      } else if (input$getFeature == 4) {
+        flank <- getFeature(combined_b, start_flank = input$flank, end_flank = input$flank)
+        up <- getFeature(combined_b, start_flank = input$flank, end_feature = "TSS")
+        ex1 <- getFeature(combined_b, end_feature = "Exon", end_exon = 1, end_exon_boundary = "3prime")
+        in1 <- getFeature(combined_b, start_feature = "Exon", start_exon = 1, start_exon_boundary = "3prime", end_feature = "Exon", end_exon = 2, end_exon_boundary = "5prime")
+        body <- getFeature(combined_b, start_feature = "Exon", start_exon = 2, start_exon_boundary = "5prime")
+        down <- getFeature(combined_b, start_feature = "TES", end_flank = input$flank)
+      }
+      
+      incProgress(0.2, detail = "Getting features...")
+      
+      # Filtering names of bigwig files
+      if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
+        fbw <- bigwig_files[grepl("\\.f\\.bw$", bigwig_file_names)]
+        rbw <- bigwig_files[grepl("\\.r\\.bw$", bigwig_file_names)]
+        
+        if (length(fbw) > 0) {
+          names(fbw) <- sub("\\.f\\.bw$", "", bigwig_file_names[grepl("\\.f\\.bw$", bigwig_file_names)])
+          bwf <- importBWlist(fbw, names(fbw), selection = flank)
+        }
+        
+        if (length(rbw) > 0 && length(fbw) > 0) {
+          names(rbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
+          bwr <- importBWlist(rbw, names(rbw), selection = flank)
+        }
+        
+        if (length(fbw) <= 0 && length(rbw) > 0) {
+          fbw <- rbw
+          names(fbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
+          bwf <- importBWlist(fbw, names(fbw), selection = flank)
+        }
+      } else {
+        fbw <- bigwig_files[grepl("\\.bw$", bigwig_file_names)]
+        if (length(fbw) > 0) {
+          names(fbw) <- sub("\\.bw$", "", bigwig_file_names[grepl("\\.bw$", bigwig_file_names)])
+          bwf <- importBWlist(fbw, names(fbw), selection = flank)
+        }
+      }
+      
+      incProgress(0.5, detail = "Generating matrices")
+      
+      # Import bigwig files as a list
+      if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
+        if (input$getFeature == 1) {
+          grl <- list("features" = features)
+          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
+        } else if (input$getFeature == 2 || input$getFeature == 3) {
+          grl <- list("features" = features)
+          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
+        } else if (input$getFeature == 4) {
+          grl <- list("up" = up, "exon1" = ex1, "intron1" = in1, "body" = body, "down" = down)
+          wins <- c("up" = input$up, "exon1" = input$exon1, "intron1" = input$intron1, "body" = input$body, "down" = input$down)
+          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), wins = wins, strand = strand_reactive(), smooth = smooth_reactive())
+        }
+      } else {
+        if (input$getFeature == 1) {
+          grl <- list("features" = features)
+          matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
+        } else if (input$getFeature == 2 || input$getFeature == 3) {
+          grl <- list("features" = features)
+          matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
+        } else if (input$getFeature == 4) {
+          grl <- list("up" = up, "exon1" = ex1, "intron1" = in1, "body" = body, "down" = down)
+          wins <- c("up" = input$up, "exon1" = input$exon1, "intron1" = input$intron1, "body" = input$body, "down" = input$down)
+          matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), wins = wins, strand = strand_reactive(), smooth = smooth_reactive())
+        }
+      }
+      
+      incProgress(0.9, detail = "Almost finished...")
+      return(matl_result)
     })
   })
   
@@ -210,45 +296,87 @@ server <- function(input, output, session) {
   # Saving Matrices
   
   saved_matrices <- reactiveValues(list = list())
-  save_dir = tempdir()
+  save_dir = file.path("users", "s2274585")
+  
+  read_saved_matrices <- function() {
+    if (dir.exists(save_dir)) {
+      saved_files <- list.files(save_dir, pattern = "\\.rds$")
+      matrix_names <- gsub("\\.rds$", "", saved_files)
+      return(matrix_names)
+    } else {
+      return(character(0))
+    }
+  }
+  
+  saved_matrices_poll <- reactivePoll(
+    intervalMillis = 1000, 
+    session = session,
+    checkFunc = function() {
+      if (dir.exists(save_dir)) {
+        file.info(save_dir)$mtime
+      } else {
+        NULL
+      }
+    },
+    valueFunc = read_saved_matrices
+  )
   
   observeEvent(input$savematrices, {
     req(matl())
     mat_list <- matl()
     
-    for (mat_name in names(mat_list)) {
-      file_path <- file.path(save_dir, paste0(mat_name, ".rds"))
-      saveRDS(mat_list[[mat_name]], file = file_path)
-      saved_matrices$list[[mat_name]] <- file_path
+    if (!dir.exists(save_dir)) {
+      dir.create(save_dir, recursive = TRUE)
     }
     
-    showNotification("Matrices saved successfully!", type = "message")
+    for (mat_name in names(mat_list)) {
+      file_path <- file.path(save_dir, paste0(mat_name, ".rds"))
+      tryCatch({
+        saveRDS(mat_list[[mat_name]], file = file_path)
+        Sys.sleep(0.1)
+        showNotification(paste("Matrix", mat_name, "saved successfully!"), type = "message")
+      }, error = function(e) {
+        showNotification(paste("Error saving matrix", mat_name, ":", e$message), type = "error")
+      })
+    }
   })
   
   output$savedmatrices <- renderText({
-    if (length(saved_matrices$list) == 0) {
+    matrix_names <- saved_matrices_poll()
+    if (length(matrix_names) == 0) {
       return("No matrices saved")
+    } else {
+      return(paste(matrix_names, collapse = ", "))
     }
-    paste(names(saved_matrices$list), collapse = ", ")
   })
   
   observeEvent(input$clearmatrices, {
-    for (file_path in saved_matrices$list) {
-      if (file.exists(file_path)) {
-        file.remove(file_path)
+    if (dir.exists(save_dir)) {
+      saved_files <- list.files(save_dir, full.names = TRUE)
+      for (file_path in saved_files) {
+        if (file.exists(file_path)) {
+          tryCatch({
+            file.remove(file_path)
+            print(paste("File deleted:", file_path)) 
+          }, error = function(e) {
+            print(paste("Error deleting file:", file_path, e$message)) 
+            showNotification(paste("Error deleting file:", basename(file_path), e$message), type = "error")
+          })
+        }
       }
+      showNotification("Saved matrices cleared", type = "warning")
     }
-    saved_matrices$list <- list()  # Clear list
-    showNotification("Saved matrices cleared", type = "warning")
     updateCheckboxGroupInput(session, "selectedmatrices", choices = character(0), selected = NULL)
   })
   
   observe({
+    matrix_names <- saved_matrices_poll()
     updateCheckboxGroupInput(session, "selectedmatrices",
-                             choices = names(saved_matrices$list),
+                             choices = matrix_names,
                              selected = NULL
     )
   })
+  
   
   ### enrichedHeatmap Heatmaps
   
@@ -276,18 +404,19 @@ server <- function(input, output, session) {
   })
   
   # Creating other reactive objects for heatmap customisation
-
+  
   selected_matrices_reactive <- reactive({
     req(input$selectedmatrices)
     
     selected_mats <- lapply(input$selectedmatrices, function(mat_name) {
-      mat_path <- saved_matrices$list[[mat_name]]
+      mat_path <- file.path(save_dir, paste0(mat_name, ".rds")) # Construct the correct path
       if (file.exists(mat_path)) {
         return(readRDS(mat_path))
       } else {
         return(NULL)
       }
     })
+    
     selected_mats <- selected_mats[!sapply(selected_mats, is.null)]
     names(selected_mats) <- input$selectedmatrices[!sapply(selected_mats, function(x) is.null(x))]
     
@@ -545,7 +674,7 @@ server <- function(input, output, session) {
   
   
   # ggplot Heatmaps
-
+  
   observe ({
     if (input$ggplotheatmapplotbutton > 0) {
       showNotification("Plotting output...", type = "message")
@@ -723,8 +852,8 @@ server <- function(input, output, session) {
   average_profile <- eventReactive(input$averageprofileplotbutton, {
     req(matl())
     if(input$split){
-    average_profile <- mplot(matl = selected_matrices_reactive(), split = split_reactive(),colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
-    return(average_profile)
+      average_profile <- mplot(matl = selected_matrices_reactive(), split = split_reactive(),colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
+      return(average_profile)
     } else {
       average_profile <- mplot(matl = selected_matrices_reactive(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
       return(average_profile)
