@@ -15,6 +15,110 @@ server <- function(input, output, session) {
     }
   })
   
+  ## Saving sequence data files
+  
+  saved_sequence <- reactiveValues(list = list())
+  sequence_dir <- file.path("users", "s2274585", "sequence data files")
+  
+  read_sequence_files <- function() {
+    if (dir.exists(sequence_dir)) {
+      save_files <- list.files(sequence_dir, pattern = "\\.rds$")
+      sequence_names <- gsub("\\.rds$", "", save_files)
+      return(sequence_names)
+    } else {
+      return(character(0))
+    }
+  }
+  
+  observeEvent(input$savesequencedata, {
+    sequence_name <- input$sequencenames # Get the desired file name from textInput
+    sequence_dir <- file.path("users", "s2274585", "sequence data files")
+    
+    if (!dir.exists(sequence_dir)) {
+      dir.create(sequence_dir, recursive = TRUE)
+    }
+    
+    if (nchar(sequence_name) == 0) {
+      showNotification("Please enter a sequence name.", type = "error")
+      return()
+    }
+    
+    # Copy uploaded files to the sequence data files directory
+    uploaded_files <- input$Sequence1
+    new_file_name <- paste0(input$sequencenames, ".", tools::file_ext(uploaded_files$name)) # Use the name from textInput
+    new_file_path <- file.path(sequence_dir, new_file_name)
+    file.copy(uploaded_files$datapath, new_file_path)
+    
+    # No RDS saving
+    
+    tryCatch({
+      # ... any other actions you want to perform after saving ...
+      showNotification(paste("Sequence", sequence_name, "saved successfully!"), type = "message")
+    }, error = function(e) {
+      showNotification(paste("Error saving sequence", sequence_name, ":", e$message), type = "error")
+    })
+  })
+  
+  observeEvent(input$clearsequence, {
+    if(dir.exists(sequence_dir)) {
+      saved_files <- list.files(sequence_dir, full.names = TRUE)
+      for(sequence_path in saved_files) {
+        if(file.exists(sequence_path)) {
+          tryCatch({
+            file.remove(sequence_path)
+            print(paste("File deleted:", sequence_path))
+          }, error = function(e) {
+            print(paste("Error deleting file:", sequence_path, e$message))
+            showNotification(paste("Error deleting file:", basename(sequence_path), e$message), type = "error")
+          })
+        }
+      }
+      showNotification("Saved matrices cleared", type = "warning")
+    }
+  })
+  
+  read_saved_sequence <- function() {
+    if (dir.exists(sequence_dir)) {
+      saved_files <- list.files(sequence_dir, pattern = "\\.bw$")
+      # Remove ".bw" extension
+      sequence_names <- tools::file_path_sans_ext(saved_files)
+      return(sequence_names)
+    } else {
+      return(character(0))
+    }
+  }
+  
+  
+  saved_sequence_poll <- reactivePoll(
+    intervalMillis = 500,
+    session = session,
+    checkFunc = function() {
+      if (dir.exists(sequence_dir)) {
+        saved_files <- list.files(sequence_dir, pattern = "\\.bw$", full.names = TRUE) # Look for .bw files
+        if (length(saved_files) > 0) {
+          # Return a vector of file modification times
+          file.info(saved_files)$mtime
+        } else {
+          # Return a unique value when the directory is empty
+          "empty"
+        }
+      } else {
+        NULL
+      }
+    },
+    valueFunc = read_saved_sequence
+  )
+  
+  
+  observe({
+    sequence_names <- saved_sequence_poll()
+    updateSelectInput(session, "sequencedatafiles",
+                      choices = sequence_names,
+                      selected = NULL)
+  })
+  
+  
+    
   output$pickgenome <- renderUI({
     if(input$databasefetch){
       selectInput(
@@ -283,7 +387,6 @@ server <- function(input, output, session) {
     })
   })
   
-  
   output$matrixnames <- renderText({
     req(matl())
     mat_names <- names(matl())
@@ -296,7 +399,7 @@ server <- function(input, output, session) {
   # Saving Matrices
   
   saved_matrices <- reactiveValues(list = list())
-  save_dir = file.path("users", "s2274585")
+  save_dir = file.path("users", "s2274585", "matrices")
   
   read_saved_matrices <- function() {
     if (dir.exists(save_dir)) {
