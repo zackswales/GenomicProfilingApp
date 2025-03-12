@@ -276,12 +276,41 @@ server <- function(input, output, session) {
     }
   })
   
+  # Switching the inputs for the custom feature specification to required arguments
+  
+  startfeaturereactive <- reactive({
+    switch(input$startfeature,
+           "1" = "TSS",
+           "2" = "TES",
+           "3" = "Exon")
+  })
+  
+  endfeaturereactive <- reactive({
+    switch(input$endfeature,
+           "1" = "TSS",
+           "2" = "TES",
+           "3" = "Exon")
+  })
+  
+  startboundaryreactive <- reactive({
+    switch(input$startboundary,
+           "1" = "3prime",
+           "2" = "5prime")
+  })
+  
+  endboundaryreactive <- reactive({
+    switch(input$endboundary,
+           "1" = "3prime",
+           "2" = "5prime")
+  })
   
   # Matrix list generation
   
   
   matl <- eventReactive(input$matrixgeneration, {
     req(input$Sequence1)
+    
+    regions <- list()
     
     withProgress(message = "Matrix Generation", value = 0, {
       
@@ -315,12 +344,71 @@ server <- function(input, output, session) {
         features <- getFeature(combined_b, start_feature = "TES", end_feature = "TES")
         flank <- getFeature(combined_b, start_feature = "TES", end_feature = "TES", start_flank = input$flank, end_flank = input$flank)
       } else if (input$getFeature == 4) {
-        flank <- getFeature(combined_b, start_flank = input$flank, end_flank = input$flank)
-        up <- getFeature(combined_b, start_flank = input$flank, end_feature = "TSS")
-        ex1 <- getFeature(combined_b, end_feature = "Exon", end_exon = 1, end_exon_boundary = "3prime")
-        in1 <- getFeature(combined_b, start_feature = "Exon", start_exon = 1, start_exon_boundary = "3prime", end_feature = "Exon", end_exon = 2, end_exon_boundary = "5prime")
-        body <- getFeature(combined_b, start_feature = "Exon", start_exon = 2, start_exon_boundary = "5prime")
-        down <- getFeature(combined_b, start_feature = "TES", end_flank = input$flank)
+        flank <- getFeature(combined_b, start_feature = startfeaturereactive(), end_feature = endfeaturereactive(), start_flank = input$startflank, end_flank = input$endflank)
+        feature_objects <- reactive({
+          regions <- list()  # Initialize empty list
+          
+          # Upstream Flank
+          if (input$customflanks == 1) {
+            regions$up <- getFeature(
+              combined_b, 
+              start_flank = input$startflank, 
+              end_feature = "TSS"
+            )
+          }
+          
+          # Exon numbers
+          if (input$customexons == 1) {
+            for (exon_num in seq(input$startexon, input$endexon)) {
+              regions[[paste0("ex", exon_num)]] <- getFeature(
+                combined_b, 
+                start_feature = "Exon", 
+                start_exon = exon_num, 
+                start_exon_boundary = "5prime",
+                end_feature = "Exon", 
+                end_exon = exon_num, 
+                end_exon_boundary = "3prime"
+              )
+            }
+          }
+          
+          # First Intron
+          if (input$customexons == 1 && input$customboundary == 1) {
+            for (exon_num in seq(input$startexon, input$endexon - 1)) {
+              regions[[paste0("in", exon_num)]] <- getFeature(
+                combined_b, 
+                start_feature = "Exon", 
+                start_exon = exon_num,
+                start_exon_boundary = "3prime",
+                end_feature = "Exon",
+                end_exon = exon_num + 1,
+                end_exon_boundary = "5prime"
+              )
+            }
+          }
+          
+          # Gene Body (remaining exons)
+          if (input$customexons == 1 && input$customboundary == 1) {
+            regions$body <- getFeature(
+              combined_b, 
+              start_feature = "Exon",
+              start_exon = input$endexon,
+              start_exon_boundary = "5prime"
+            )
+          }
+          
+          # Downstream Flank
+          if (input$customflanks == 1) {
+            regions$down <- getFeature(
+              combined_b, 
+              start_feature = "TES", 
+              end_flank = input$endflank
+            )
+          }
+          print("All regions:")
+          print(regions)
+          return(regions)
+        })
       }
       
       incProgress(0.2, detail = "Getting features...")
@@ -364,9 +452,23 @@ server <- function(input, output, session) {
           grl <- list("features" = features)
           matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
         } else if (input$getFeature == 4) {
-          grl <- list("up" = up, "exon1" = ex1, "intron1" = in1, "body" = body, "down" = down)
-          wins <- c("up" = input$up, "exon1" = input$exon1, "intron1" = input$intron1, "body" = input$body, "down" = input$down)
-          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), wins = wins, strand = strand_reactive(), smooth = smooth_reactive())
+          grl_reactive <- reactive({
+            regions <- feature_objects()
+            grl <- list()
+            for (name in names(regions)) {
+              grl[[name]] <- regions[[name]]
+            }
+            return(grl)
+          })
+          wins_reactive <- reactive({
+            regions <- feature_objects()
+            wins <- c()
+            for (name in names(regions)) {
+              wins[name] <- 10
+            }
+            return(wins)
+          })
+          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl_reactive(), names = names(fbw), wins = wins_reactive(), strand = strand_reactive(), smooth = smooth_reactive())
         }
       } else {
         if (input$getFeature == 1) {
@@ -376,9 +478,26 @@ server <- function(input, output, session) {
           grl <- list("features" = features)
           matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
         } else if (input$getFeature == 4) {
-          grl <- list("up" = up, "exon1" = ex1, "intron1" = in1, "body" = body, "down" = down)
-          wins <- c("up" = input$up, "exon1" = input$exon1, "intron1" = input$intron1, "body" = input$body, "down" = input$down)
-          matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), wins = wins, strand = strand_reactive(), smooth = smooth_reactive())
+          
+          grl_reactive <- reactive({
+            regions <- feature_objects()
+            grl <- list()
+            for (name in names(regions)) {
+              grl[[name]] <- regions[[name]]
+            }
+            return(grl)
+          })
+          
+          wins_reactive <- reactive({
+            regions <- feature_objects()
+            wins <- c()
+            for (name in names(regions)) {
+              wins[name] <- 10
+            }
+            return(wins)
+          })
+          
+          matl_result <- matList(bwf = bwf, grl = grl_reactive(), names = names(fbw), wins = wins_reactive(), strand = strand_reactive(), smooth = smooth_reactive())
         }
       }
       
