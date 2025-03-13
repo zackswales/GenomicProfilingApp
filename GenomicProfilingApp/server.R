@@ -304,15 +304,66 @@ server <- function(input, output, session) {
            "2" = "5prime")
   })
   
+  saved_regions <- reactiveVal(list())
+  
+  observeEvent(input$getregion, {
+    region_file <- if (!is.null(input$Region1)) input$Region1$datapath else NULL
+    region2_file <- if (!is.null(input$Region2)) input$Region2$datapath else NULL
+    
+    if (!is.null(input$Region1)) {
+      b <- readBed(region_file)
+      combined_b <- if (!is.null(region2_file)) c(b, readBed(region2_file)) else b
+    } else if (is.null(input$Region1)) {
+      combined_b <- gr()
+    }
+    
+    region_name <- input$regionname
+    start_feature <- startfeaturereactive()
+    end_feature <- endfeaturereactive()
+    start_flank <- input$startflank
+    end_flank <- input$endflank
+    window_size <- input$winsize
+    
+    # Create a data frame for the new region
+    new_region <- data.frame(
+      "Region" = region_name,
+      "Start Feature" = start_feature,
+      "End Feature" = end_feature,
+      "Upstream Flank" = start_flank,
+      "Downstream Flank" = end_flank,
+      "Window size" = window_size
+    )
+    
+    current_regions <- saved_regions()
+    saved_regions(c(current_regions, list(new_region)))
+  })
+  
+  observeEvent(input$clearregions, {
+    saved_regions(list()) # Reset saved_regions to an empty list
+  })
+  
+  output$savedRegionsTable <- renderDT({
+    if (input$getFeature == 4) {
+      regions_list <- saved_regions()
+      if (length(regions_list) > 0) {
+        # Combine data frames from the list into a single data frame
+        df <- do.call(rbind, regions_list)
+        datatable(df)
+      } else {
+        datatable(data.frame(Message = "No regions saved yet."))
+      }
+    }
+  })
+  
   # Matrix list generation
   
   
   matl <- eventReactive(input$matrixgeneration, {
     req(input$Sequence1)
     
-    regions <- list()
-    
     withProgress(message = "Matrix Generation", value = 0, {
+      
+      regions <- list()
       
       region_file <- if (!is.null(input$Region1)) input$Region1$datapath else NULL
       region2_file <- if (!is.null(input$Region2)) input$Region2$datapath else NULL

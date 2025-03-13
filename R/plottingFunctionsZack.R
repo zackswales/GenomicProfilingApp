@@ -24,6 +24,7 @@ library(bslib)
 library(shinyjs)
 library(ggplot2)
 library(patchwork)
+library(DT)
 library(scales)
 # library(UCSC.utils)
 

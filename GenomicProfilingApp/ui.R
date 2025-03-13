@@ -132,190 +132,104 @@ ui <- page_navbar(
       nav_panel(
         title = "2. Feature Specification",
         div(
-          style = "display: flex; justify-content: center; align-items: center; min-height: 50vh;", # Adjust min-height as needed
-          layout_columns(
-            columns = 3,
-            width = "300px",
-            fill = TRUE,
-            title = "Feature Specification",
-            card(
-              height = "300px",
-              card_header("Feature"),
-              selectInput(
-                inputId = "getFeature",
-                label = "Specify feature of interest:",
-                choices = list("Full gene" = 1, "TSS" = 2, "TES" = 3, "Custom" = 4),
-                selected = 1
-              )
-            ),
-            conditionalPanel(
-              condition = "input.getFeature != 4",
+          style = "display: flex; justify-content: center; align-items: center; min-height: 50vh;",
+          fluidRow(
+            column(
+              width = 2,
               card(
-                card_header("Flank region"),
-                numericInput(
-                  inputId = "flank",
-                  label = "Specify flank around feature:",
-                  value = 20,
-                  step = 10
+                height = "230px",
+                card_header("Feature"),
+                selectInput(
+                  inputId = "getFeature",
+                  label = "Specify feature of interest:",
+                  choices = list("Full gene" = 1, "TSS" = 2, "TES" = 3, "Custom" = 4),
+                  selected = 1
                 )
               )
             ),
-            conditionalPanel(
-              condition = "input.getFeature == 1",
-              card(
-                card_header("Window size"),
-                sliderInput(
-                  inputId = "windowsize",
-                  label = "Select window size for signal aggregation:",
-                  min = 1,
-                  max = 20,
-                  value = 1
+            column(
+              width = 6,
+              conditionalPanel(
+                condition = "input.getFeature != 4",
+                card(
+                  card_header("Flank region"),
+                  numericInput(
+                    inputId = "flank",
+                    label = "Specify flank around feature:",
+                    value = 20,
+                    step = 10
+                  )
                 )
+              ),
+              conditionalPanel(
+                condition = "input.getFeature == 4",
+                DTOutput("savedRegionsTable")
               )
             ),
-            conditionalPanel(
-              condition = "input.getFeature == 4",
-              card(
-                card_header("Custom specification"),
-                checkboxInput(
-                  inputId = "customfeatures",
-                  label = "Customise start/end feature",
-                  value = FALSE
-                ),
-                conditionalPanel(
-                  condition = "input.customfeatures == 1",
+            column(
+              width = 4,
+              conditionalPanel(
+                condition = "input.getFeature == 1",
+                card(
+                  card_header("Window size"),
+                  sliderInput(
+                    inputId = "windowsize",
+                    label = "Select window size for signal aggregation:",
+                    min = 1,
+                    max = 20,
+                    value = 1
+                  )
+                )
+              ),
+              conditionalPanel(
+                condition = "input.getFeature == 4",
+                card(
+                  card_header("Custom specification"),
+                  actionButton(
+                    inputId = "getregion",
+                    label = "Get Region"
+                  ),
+                  textInput(
+                    inputId = "regionname",
+                    label = "Region name:"
+                  ),
                   selectInput(
                     inputId = "startfeature",
-                    label = "Start Feature:",
-                    choices = c("TSS" = 1, "TES" = 2, "Exon" = 3),
+                    label = "Start feature:",
+                    choices = c("TSS" = 1, "TES" = 2),
                     selected = 1
                   ),
                   selectInput(
                     inputId = "endfeature",
-                    label = "End Feature:",
-                    choices = c("TSS" = 1, "TES" = 2, "Exon" = 3),
+                    label = "End feature:",
+                    choices = c("TSS" = 1, "TES" = 2),
                     selected = 2
-                  )
-                ),
-                checkboxInput(
-                  inputId = "customflanks",
-                  label = "Customise flanks",
-                  value = FALSE
-                ),
-                conditionalPanel(
-                  condition = "input.customflanks == 1",
+                  ),
                   numericInput(
                     inputId = "startflank",
-                    label = "Start flank:",
-                    value = 0,
+                    label = "Upstream flank:",
                     min = 0,
+                    value = 0,
                     step = 10
                   ),
                   numericInput(
                     inputId = "endflank",
-                    label = "End flank:",
-                    value = 0,
+                    label = "Downstream flank:",
                     min = 0,
+                    value = 0,
                     step = 10
-                  )
-                ),
-                checkboxInput(
-                  inputId = "customexons",
-                  label = "Customise exons",
-                  value = FALSE
-                ),
-                conditionalPanel(
-                  condition = "input.customexons == 1",
-                  numericInput(
-                    inputId = "startexon",
-                    label = "Start exon:",
-                    value = 1,
-                    min = 1,
-                    step = 1
                   ),
                   numericInput(
-                    inputId = "endexon",
-                    label = "End exon:",
-                    value = 1,
-                    min = 1,
-                    step = 1
-                  )
-                ),
-                checkboxInput(
-                  inputId = "customboundary",
-                  label = "Exon boundaries",
-                  value = FALSE
-                ),
-                conditionalPanel(
-                  condition = "input.customboundary == 1",
-                  selectInput(
-                    inputId = "startboundary",
-                    label = "Start boundary:",
-                    choices = c("3 prime" = 1, "5 prime" = 2),
-                    selected = 2
+                    inputId = "winsize",
+                    label = "Window size for region:",
+                    min = 0,
+                    value = 20,
+                    step = 10
                   ),
-                  selectInput(
-                    inputId = "endboundary",
-                    label = "End boundary:",
-                    choices = c("3 prime" = 1, "5 prime" = 2),
-                    selected = 1
+                  actionButton(
+                    inputId = "clearregions",
+                    label = "Clear saved regions"
                   )
-                ),
-                checkboxInput(
-                  inputId = "customdirection",
-                  label = "Flank direction",
-                  value = FALSE
-                ),
-                conditionalPanel(
-                  condition = "input.customdirection == 1",
-                  selectInput(
-                    inputId = "startdirection",
-                    label = "Start direction:",
-                    choices = c("Up" = 1, "Down" = 2),
-                    selected = 1
-                  ),
-                  selectInput(
-                    inputId = "enddirection",
-                    label = "End direction:",
-                    choices = c("Up" = 1, "Down" = 2),
-                    selected = 2
-                  )
-                )
-              )
-            ),
-            conditionalPanel(
-              condition = "input.getFeature == 4",
-              card(
-                card_header("Window size for features"),
-                numericInput(
-                  inputId = "up",
-                  label = "Upstream flank:",
-                  value = 20,
-                  step = 10
-                ),
-                numericInput(
-                  inputId = "exon1",
-                  label = "Exon 1:",
-                  value = 50,
-                  step = 10
-                ),
-                numericInput(
-                  inputId = "intron1",
-                  label = "Intron 1:",
-                  value = 50,
-                  step = 10
-                ),
-                numericInput(
-                  inputId = "body",
-                  label = "Gene body:",
-                  value = 50,
-                  step = 10
-                ),
-                numericInput(
-                  inputId = "down",
-                  label = "Downstream flank",
-                  value = 20,
-                  step = 10
                 )
               )
             )
