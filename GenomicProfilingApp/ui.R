@@ -207,17 +207,31 @@ ui <- page_navbar(
                   ),
                   numericInput(
                     inputId = "startflank",
-                    label = "Upstream flank:",
+                    label = "Start flank:",
                     min = 0,
+                    max = 500,
                     value = 0,
                     step = 10
                   ),
                   numericInput(
                     inputId = "endflank",
-                    label = "Downstream flank:",
+                    label = "End flank:",
                     min = 0,
+                    max = 500,
                     value = 0,
                     step = 10
+                  ),
+                  selectInput(
+                    inputId = "startdirection",
+                    label = "Start direction:",
+                    choices = c("Up" = 1, "Down" =2),
+                    selected = 1
+                  ),
+                  selectInput(
+                    inputId = "enddirection",
+                    label = "End direction:",
+                    choices = c("Up" = 1, "Down" = 2),
+                    selected = 2
                   ),
                   numericInput(
                     inputId = "winsize",
