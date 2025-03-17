@@ -21,7 +21,7 @@ ui <- page_navbar(
     card(
       full_screen = FALSE,
       card_header("Heatmap Splitting"),
-      card_body("If intending to split each heatmap - ensure there are two region files (e.g. a file for RP and nRP if intending to split by RP)")
+      card_body("Upload .tsv annotation file for heatmaps splitting containing two columns - feature names + category to split by")
     )
   ),
   

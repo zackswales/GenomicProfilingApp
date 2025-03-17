@@ -590,15 +590,33 @@ server <- function(input, output, session) {
     req(input$split)
     region_file <- input$Region1$datapath
     annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+    colnames(annotation) <- c("gene_name", "family")
     Anno <- data.frame(name = c(rownames(matl()[[1]]))) |>
       left_join(data.frame(name = annotation$gene_name, Family = factor(annotation$family)), by = "name") |>
       column_to_rownames("name")
     return(Anno)
   })
+
   
   split_cols_reactive <- reactive({
-    anno_cols <- list(Family = c(`A` = "#DA4167", `B` = "#083D77"))
-    return(anno_cols)
+    req(split_reactive())
+    unique_families <- unique(split_reactive()$Family)
+    
+    if (length(unique_families) == 2) {
+      # Create named vector directly with backticks
+      colors <- c("#DA4167", "#083D77")
+      names(colors) <- unique_families[1:2]
+      list(Family = colors)
+    } else if (length(unique_families) > 2) {
+      # Assign colors from a palette for more than two unique values
+      color_palette <- grDevices::rainbow(length(unique_families))
+      names(color_palette) <- unique_families
+      names(color_palette) <- paste0("`",names(color_palette),"`") # Add backticks to the names.
+      list(Family = color_palette)
+    } else {
+      # Handle cases with 0 or 1 unique values
+      list(Family = c("default" = "gray"))
+    }
   })
   
   # Creating other reactive objects for heatmap customisation
