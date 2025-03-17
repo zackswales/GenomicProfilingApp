@@ -63,9 +63,7 @@ ui <- page_navbar(
             ),
             conditionalPanel(
               condition = "input.split == 1",
-              uiOutput("Region1splitting"),
-              uiOutput("conditionalRegion2"),
-              uiOutput("conditionalRegion2splitting")
+              uiOutput("tsvupload")
             ),
             selectInput(
               inputId = "sequencedatafiles",

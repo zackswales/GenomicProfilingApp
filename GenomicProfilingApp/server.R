@@ -161,31 +161,13 @@ server <- function(input, output, session) {
     }
   })
   
-  output$Region1splitting <- renderUI({
-    if(input$split){
-      textInput(
-        inputId = "Region1splitting",
-        label = "Splitting identifier in first region file"
-      )
-    }
-  })
-  
-  output$conditionalRegion2 <- renderUI({
+  output$tsvupload <- renderUI({
     if(input$split){
       fileInput(
-        inputId = "Region2",
-        label = "Upload second region file for splitting (.bed/.gtf)",
-        accept = c(".bed", ".gtf"),
+        inputId = "tsvsplitting",
+        label = "Upload .tsv file for splitting",
+        accept = ".tsv",
         multiple = FALSE
-      )
-    }
-  })
-  
-  output$conditionalRegion2splitting <- renderUI({
-    if(input$split){
-      textInput(
-        inputId = "Region2splitting",
-        label = "Splitting identifier in second region file"
       )
     }
   })
@@ -496,27 +478,8 @@ server <- function(input, output, session) {
           grl <- list("features" = features)
           matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
         } else if (input$getFeature == 4) {
-          
-          grl_reactive <- reactive({
-            regions <- feature_objects()
-            grl <- list()
-            for (name in names(regions)) {
-              grl[[name]] <- regions[[name]]
-            }
-            return(grl)
-          })
-          
-          wins_reactive <- reactive({
-            regions <- feature_objects()
-            wins <- c()
-            for (name in names(regions)) {
-              wins[name] <- 10
-            }
-            return(wins)
-          })
-          
-          matl_result <- matList(bwf = bwf, grl = grl_reactive(), names = names(fbw), wins = wins_reactive(), strand = strand_reactive(), smooth = smooth_reactive())
-        }
+          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), wins = wins_vector(), strand = strand_reactive(), smooth = smooth_reactive())
+        } 
       }
       
       incProgress(0.9, detail = "Almost finished...")
@@ -626,20 +589,15 @@ server <- function(input, output, session) {
   split_reactive <- reactive({
     req(input$split)
     region_file <- input$Region1$datapath
-    region2_file <- input$Region2$datapath
-    b <- readBed(region_file)
-    b2 <- readBed(region2_file)
-    Anno <- data.frame(name = rownames(matl()[[1]])) |>
-      left_join(data.frame(name = b$name, b_group = input$Region1splitting), by = "name") |>
-      left_join(data.frame(name = b2$name, b2_group = input$Region2splitting), by = "name") |>
-      mutate(Group = coalesce(b_group, b2_group)) |>
-      select(name, Group) |>
+    annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+    Anno <- data.frame(name = c(rownames(matl()[[1]]))) |>
+      left_join(data.frame(name = annotation$gene_name, Family = factor(annotation$family)), by = "name") |>
       column_to_rownames("name")
     return(Anno)
   })
   
   split_cols_reactive <- reactive({
-    anno_cols <- list(group = c(`input$Region1splitting` = "#DA4167", `input$Region2splitting` = "#083D77"))
+    anno_cols <- list(Family = c(`A` = "#DA4167", `B` = "#083D77"))
     return(anno_cols)
   })
   
