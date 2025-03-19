@@ -1,4 +1,5 @@
 server <- function(input, output, session) {
+  tab_login$server(input, output)
   
   ## Data processing
   
@@ -118,14 +119,14 @@ server <- function(input, output, session) {
   })
   
   
-    
+  
   output$pickgenome <- renderUI({
     if(input$databasefetch){
       selectInput(
         inputId = "genome",
         label = "Select genome:",
-        choices = c("S.cerevisiae sacCer3" = 1),
-        selected = 1
+        choices = c("S.cerevisiae sacCer3" = "sacCer3", "Human hg38" = "hg38"),
+        selected = "sacCer3"
       )
     }
   })
@@ -135,20 +136,34 @@ server <- function(input, output, session) {
       selectInput(
         inputId = "group",
         label = "Select group:",
-        choices = c("genes" = 1),
-        selected = 1
+        choices = c("Genes" = "genes"),
+        selected = "genes"
       )
     }
   })
   
   output$picktrack <- renderUI({
-    if(input$databasefetch){
-      selectInput(
-        inputId = "track",
-        label = "Select track:",
-        choices = c("Structure" = 1, "Repeats" = 2, "Mutations" = 3),
-        selected = 1
-      )
+    if (input$databasefetch) {
+      if (!is.null(input$genome)) {  # Check if input$genome has a value
+        genome_selected <- input$genome
+        
+        track_choices <- switch(genome_selected,
+                                "sacCer3" = c("RefSeq All" = "ncbiRefSeq", "Ensembl Genes" = "ensGene"),
+                                "hg38" = c("RefSeq All" = "ncbiRefSeq", "UCSC RefSeq" = "refGene", "Ensembl GENCODE V20 Genes" = "wgEncodeGencodeV22ViewGenes")
+        )
+        
+        selectInput(
+          inputId = "track",
+          label = "Select track:",
+          choices = track_choices,
+          selected = track_choices[1]
+        )
+      } else {
+        # Handle the case where input$genome is NULL (e.g., return a default UI)
+        return(NULL) # Or you can return a default select input
+      }
+    } else {
+      return(NULL) # Handle the case where databasefetch is not clicked
     }
   })
   
@@ -174,18 +189,6 @@ server <- function(input, output, session) {
   
   # Fetching the data from UCSC
   
-  genome_reactive <- reactive({
-    value <- switch(input$genome,
-                    "1" = "sacCer3")
-  })
-  
-  track_reactive <- reactive({
-    value <- switch(input$track,
-                    "1" = "unipStruct",
-                    "2" = "unipRepeat",
-                    "3" = "unipMut")
-  })
-  
   observeEvent(input$fetchannotation, {
     showNotification("Fetching annotation...", type = "message")
   })
@@ -196,26 +199,36 @@ server <- function(input, output, session) {
   
   gr <- eventReactive(input$fetchannotation, {
     
-    fetch <- fetch_UCSC_track_data(genome_reactive(), track_reactive())
+    fetch <- fetch_UCSC_track_data(input$genome, input$track)
+    columns_to_remove <- c("name", "chrom", "txStart", "txEnd", "strand")
+    mcols <- fetch[, !(names(fetch) %in% columns_to_remove)]
     
     GRanges(
       seqnames = fetch$chrom,
-      ranges = IRanges(start = fetch$chromStart + 1, end = fetch$chromEnd),
+      ranges = IRanges(start = fetch$txStart + 1, end = fetch$txEnd),
       strand = fetch$strand,
-      score = fetch$score,
       name = fetch$name,
-      thickStart = as.integer(fetch$thickStart + 1), # Add +1 for 1-based coordinates
-      thickEnd = fetch$thickEnd,
-      itemRgb = as.integer(0),
-      blockCount = fetch$blockCount,
-      blockSizes = fetch$blockSizes,
-      blockStarts = as.character(0)
+      cdsStart = fetch$cdsStart,
+      cdsEnd = fetch$cdsEnd,
+      exonCount = fetch$exonCount,
+      exonStarts = fetch$exonStarts,
+      exonEnds = fetch$exonEnds,
+      score = fetch$score, 
+      name2 = fetch$name2, 
+      cdsStartStat = fetch$cdsStartStat,
+      cdsEndStat = fetch$cdsEndStat, 
+      exonFrames = fetch$exonFrames
     )
   })
   
   output$annotationname <- renderPrint({
-    req(gr())
-    paste(genome_reactive(), track_reactive())
+    req(input$fetchannotation)
+    observeEvent(input$fetchannotation, { 
+      output$annotationname <- renderPrint({ 
+        paste(input$genome, input$track)
+      })
+    })
+    return(NULL)
   })
   
   region_files_count <- reactive({
@@ -596,7 +609,7 @@ server <- function(input, output, session) {
       column_to_rownames("name")
     return(Anno)
   })
-
+  
   
   split_cols_reactive <- reactive({
     req(split_reactive())

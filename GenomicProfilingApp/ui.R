@@ -2,7 +2,10 @@ ui <- page_navbar(
   title = "Interactive Genomic Profiling",
   bg = "#E46303",
   inverse = TRUE,
+  useShinyjs(),
   
+  tab_login$ui,
+
   # Panel for home page with directions for use of application
   nav_panel(
     title = "Home",
@@ -48,11 +51,14 @@ ui <- page_navbar(
               label = "Fetch database annotation",
               value = FALSE
             ),
-            fileInput(
-              inputId = "Region1",
-              label = "Upload region files (.bed/.gtf)",
-              accept = c(".bed", ".gtf"),
-              multiple = TRUE
+            conditionalPanel(
+              condition = "input.databasefetch == 0",
+              fileInput(
+                inputId = "Region1",
+                label = "Upload region files (.bed/.gtf)",
+                accept = c(".bed", ".gtf"),
+                multiple = TRUE
+              )
             ),
             conditionalPanel(
               condition = "input.databasefetch == 1",

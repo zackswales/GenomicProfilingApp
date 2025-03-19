@@ -1,6 +1,9 @@
 # Source to the plottingFunctionsZack.R script
 source("~/GenomicProfilingApp/R/plottingFunctionsZack.R")
 
+# Source to the tab.R script
+source("~/GenomicProfilingApp/GenomicProfilingApp/tab.R")
+
 # Source to the ui.R script
 source("~/GenomicProfilingApp/GenomicProfilingApp/ui.R")
 
