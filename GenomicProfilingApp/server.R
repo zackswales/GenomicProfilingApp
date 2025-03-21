@@ -1035,6 +1035,55 @@ observe({
   
   ## Reactive customisation options for the average profile plots
   
+  split_average_reactive <- reactive({
+    req(input$split)
+    region_file <- input$Region1$datapath
+    annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+    colnames(annotation) <- c("gene_name", "family")
+    Anno <- data.frame(name = c(rownames(matl()[[1]]))) |>
+      left_join(data.frame(name = annotation$gene_name, Family = factor(annotation$family)), by = "name") |>
+      column_to_rownames("name")
+    return(Anno)
+  })
+  
+  split_average_cols_reactive <- reactive({
+    req(split_average_reactive())
+    unique_families <- unique(split_reactive()$Family)
+    if (length(unique_families) == 2) {
+      # Create named vector directly with backticks
+      colors <- c("#DA4167", "#083D77")
+      names(colors) <- unique_families[1:2]
+      if(input$colourby == "Family"){
+        list(Family = colors)
+      } else if(input$colourby == "Sample"){
+        list(Sample = colors)
+      }
+    } else if (length(unique_families) > 2) {
+      # Assign colors from a palette for more than two unique values
+      color_palette <- grDevices::rainbow(length(unique_families))
+      names(color_palette) <- unique_families
+      names(color_palette) <- paste0("`",names(color_palette),"`") # Add backticks to the names.
+      if(input$colourby == "Family"){
+        list(Family = color_palette)
+      } else if(input$colourby == "Sample"){
+        list(Sample = color_palette)
+      }
+    } else {
+      if(input$colourby == "Family"){
+        list(Family = c("default" = "gray"))
+      } else if(input$colourby == "Sample"){
+        list(Sample = c("default" = "gray"))
+      }
+    }
+  })
+  
+  facet_reactive <- reactive({
+    switch(input$facetby,
+           "1" = "Sample",
+           "2" = "Family",
+           "3" = c("Sample", "Family"))
+  })
+  
   title_reactive <- reactive({
     input$plottitle
   })
@@ -1121,7 +1170,7 @@ observe({
   average_profile <- eventReactive(input$averageprofileplotbutton, {
     req(matl())
     if(input$split){
-      average_profile <- mplot(matl = selected_matrices_reactive(), split = split_reactive(),colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
+      average_profile <- mplot(matl = selected_matrices_reactive(), split = split_reactive(),colmap = split_average_cols_reactive()[[input$colourby]], title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive(), colour_by = input$colourby,facet = facet_reactive(), facet_scale = "free",facet_independent = T,facet_type="grid")
       return(average_profile)
     } else {
       average_profile <- mplot(matl = selected_matrices_reactive(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
