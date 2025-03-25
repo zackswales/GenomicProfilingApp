@@ -7,7 +7,7 @@ ui <- page_navbar(
   tab_login$ui,
   
   # Source to the home panel module
-
+  
   mod_home_ui("home"),
   
   # Source to the data processing panel module

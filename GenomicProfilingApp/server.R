@@ -2,634 +2,656 @@ server <- function(input, output, session) {
   tab_login$server(input, output, session)
   
   output$regionfile1_name <- renderText({
-  region1_names <- if (!is.null(input$Region1)) input$Region1$name else NULL
-  region2_names <- if (!is.null(input$Region2)) input$Region2$name else NULL
+    region1_names <- if (!is.null(input$Region1)) input$Region1$name else NULL
+    region2_names <- if (!is.null(input$Region2)) input$Region2$name else NULL
+    
+    if (!is.null(region1_names) && !is.null(region2_names)) {
+      paste(c(region1_names, region2_names), collapse = ", ")
+    } else if (!is.null(region1_names)) {
+      paste(region1_names, collapse = ", ")
+    } else {
+      "No files uploaded"
+    }
+  })
   
-  if (!is.null(region1_names) && !is.null(region2_names)) {
-    paste(c(region1_names, region2_names), collapse = ", ")
-  } else if (!is.null(region1_names)) {
-    paste(region1_names, collapse = ", ")
-  } else {
-    "No files uploaded"
-  }
-})
-
-## Saving sequence data files
-
-saved_sequence <- reactiveValues(list = list())
-sequence_dir <- file.path("users", "s2274585", "sequence data files")
-
-read_sequence_files <- function() {
-  if (dir.exists(sequence_dir)) {
-    save_files <- list.files(sequence_dir, pattern = "\\.rds$")
-    sequence_names <- gsub("\\.rds$", "", save_files)
-    return(sequence_names)
-  } else {
-    return(character(0))
-  }
-}
-
-observeEvent(input$savesequencedata, {
-  sequence_name <- input$sequencenames # Get the desired file name from textInput
+  ## Saving sequence data files
+  
+  saved_sequence <- reactiveValues(list = list())
   sequence_dir <- file.path("users", "s2274585", "sequence data files")
   
-  if (!dir.exists(sequence_dir)) {
-    dir.create(sequence_dir, recursive = TRUE)
-  }
-  
-  if (nchar(sequence_name) == 0) {
-    showNotification("Please enter a sequence name.", type = "error")
-    return()
-  }
-  
-  # Copy uploaded files to the sequence data files directory
-  uploaded_files <- input$Sequence1
-  new_file_name <- paste0(input$sequencenames, ".", tools::file_ext(uploaded_files$name)) # Use the name from textInput
-  new_file_path <- file.path(sequence_dir, new_file_name)
-  file.copy(uploaded_files$datapath, new_file_path)
-  
-  # No RDS saving
-  
-  tryCatch({
-    # ... any other actions you want to perform after saving ...
-    showNotification(paste("Sequence", sequence_name, "saved successfully!"), type = "message")
-  }, error = function(e) {
-    showNotification(paste("Error saving sequence", sequence_name, ":", e$message), type = "error")
-  })
-})
-
-observeEvent(input$clearsequence, {
-  if(dir.exists(sequence_dir)) {
-    saved_files <- list.files(sequence_dir, full.names = TRUE)
-    for(sequence_path in saved_files) {
-      if(file.exists(sequence_path)) {
-        tryCatch({
-          file.remove(sequence_path)
-          print(paste("File deleted:", sequence_path))
-        }, error = function(e) {
-          print(paste("Error deleting file:", sequence_path, e$message))
-          showNotification(paste("Error deleting file:", basename(sequence_path), e$message), type = "error")
-        })
-      }
-    }
-    showNotification("Saved matrices cleared", type = "warning")
-  }
-})
-
-read_saved_sequence <- function() {
-  if (dir.exists(sequence_dir)) {
-    saved_files <- list.files(sequence_dir, pattern = "\\.bw$")
-    # Remove ".bw" extension
-    sequence_names <- tools::file_path_sans_ext(saved_files)
-    return(sequence_names)
-  } else {
-    return(character(0))
-  }
-}
-
-
-saved_sequence_poll <- reactivePoll(
-  intervalMillis = 500,
-  session = session,
-  checkFunc = function() {
+  read_sequence_files <- function() {
     if (dir.exists(sequence_dir)) {
-      saved_files <- list.files(sequence_dir, pattern = "\\.bw$", full.names = TRUE) # Look for .bw files
-      if (length(saved_files) > 0) {
-        # Return a vector of file modification times
-        file.info(saved_files)$mtime
-      } else {
-        # Return a unique value when the directory is empty
-        "empty"
-      }
+      save_files <- list.files(sequence_dir, pattern = "\\.rds$")
+      sequence_names <- gsub("\\.rds$", "", save_files)
+      return(sequence_names)
     } else {
-      NULL
+      return(character(0))
     }
-  },
-  valueFunc = read_saved_sequence
-)
-
-
-observe({
-  sequence_names <- saved_sequence_poll()
-  updateSelectInput(session, "sequencedatafiles",
-                    choices = sequence_names,
-                    selected = NULL)
-})
-
-
-
-output$pickgenome <- renderUI({
-  if(input$databasefetch){
-    selectInput(
-      inputId = "genome",
-      label = "Select genome:",
-      choices = c("S.cerevisiae sacCer3" = "sacCer3", "Human hg38" = "hg38"),
-      selected = "sacCer3"
-    )
   }
-})
-
-output$pickgroup <- renderUI({
-  if(input$databasefetch){
-    selectInput(
-      inputId = "group",
-      label = "Select group:",
-      choices = c("Genes" = "genes"),
-      selected = "genes"
-    )
-  }
-})
-
-output$picktrack <- renderUI({
-  if (input$databasefetch) {
-    if (!is.null(input$genome)) {  # Check if input$genome has a value
-      genome_selected <- input$genome
-      
-      track_choices <- switch(genome_selected,
-                              "sacCer3" = c("RefSeq All" = "ncbiRefSeq", "Ensembl Genes" = "ensGene"),
-                              "hg38" = c("RefSeq All" = "ncbiRefSeq", "UCSC RefSeq" = "refGene", "Ensembl GENCODE V20 Genes" = "wgEncodeGencodeV22ViewGenes")
-      )
-      
-      selectInput(
-        inputId = "track",
-        label = "Select track:",
-        choices = track_choices,
-        selected = track_choices[1]
-      )
-    } else {
-      # Handle the case where input$genome is NULL (e.g., return a default UI)
-      return(NULL) # Or you can return a default select input
+  
+  observeEvent(input$savesequencedata, {
+    sequence_name <- input$sequencenames # Get the desired file name from textInput
+    sequence_dir <- file.path("users", "s2274585", "sequence data files")
+    
+    if (!dir.exists(sequence_dir)) {
+      dir.create(sequence_dir, recursive = TRUE)
     }
-  } else {
-    return(NULL) # Handle the case where databasefetch is not clicked
-  }
-})
-
-output$getannotation <- renderUI({
-  if(input$databasefetch){
-    actionButton(
-      inputId = "fetchannotation",
-      label = "Fetch annotation file"
-    )
-  }
-})
-
-output$tsvupload <- renderUI({
-  if(input$split){
-    fileInput(
-      inputId = "tsvsplitting",
-      label = "Upload .tsv file for splitting",
-      accept = ".tsv",
-      multiple = FALSE
-    )
-  }
-})
-
-# Fetching the data from UCSC
-
-observeEvent(input$fetchannotation, {
-  showNotification("Fetching annotation...", type = "message")
-})
-
-observeEvent(input$fetchannotation, {
-  # Add other debugging print statements here
-})
-
-gr <- eventReactive(input$fetchannotation, {
-  
-  fetch <- fetch_UCSC_track_data(input$genome, input$track)
-  columns_to_remove <- c("name", "chrom", "txStart", "txEnd", "strand")
-  mcols <- fetch[, !(names(fetch) %in% columns_to_remove)]
-  
-  GRanges(
-    seqnames = fetch$chrom,
-    ranges = IRanges(start = fetch$txStart + 1, end = fetch$txEnd),
-    strand = fetch$strand,
-    name = fetch$name,
-    cdsStart = fetch$cdsStart,
-    cdsEnd = fetch$cdsEnd,
-    exonCount = fetch$exonCount,
-    exonStarts = fetch$exonStarts,
-    exonEnds = fetch$exonEnds,
-    score = fetch$score, 
-    name2 = fetch$name2, 
-    cdsStartStat = fetch$cdsStartStat,
-    cdsEndStat = fetch$cdsEndStat, 
-    exonFrames = fetch$exonFrames
-  )
-})
-
-output$annotationname <- renderPrint({
-  req(input$fetchannotation)
-  observeEvent(input$fetchannotation, { 
-    output$annotationname <- renderPrint({ 
-      paste(input$genome, input$track)
+    
+    if (nchar(sequence_name) == 0) {
+      showNotification("Please enter a sequence name.", type = "error")
+      return()
+    }
+    
+    # Copy uploaded files to the sequence data files directory
+    uploaded_files <- input$Sequence1
+    new_file_name <- paste0(input$sequencenames, ".", tools::file_ext(uploaded_files$name)) # Use the name from textInput
+    new_file_path <- file.path(sequence_dir, new_file_name)
+    file.copy(uploaded_files$datapath, new_file_path)
+    
+    # No RDS saving
+    
+    tryCatch({
+      # ... any other actions you want to perform after saving ...
+      showNotification(paste("Sequence", sequence_name, "saved successfully!"), type = "message")
+    }, error = function(e) {
+      showNotification(paste("Error saving sequence", sequence_name, ":", e$message), type = "error")
     })
   })
-  return(NULL)
-})
-
-region_files_count <- reactive({
-  req(input$Region1)
-  length(input$Region1$datapath)
-})
-
-output$seqfile1_name <- renderText({
-  if(!is.null(input$Sequence1)) {
-    paste(input$Sequence1$name, collapse = ", ")
-  } else {
-    "No files uploaded"
-  }
-})
-
-# Creating reactive objects for the matrix customisation options
-
-strand_reactive <- reactive({
-  switch(input$strand,
-         "1" = "no",
-         "2" = "for",
-         "3" = "rev")
-})
-
-flank_reactive <- reactive({
-  input$flank
-})
-
-smooth_reactive <- reactive({
-  input$smooth
-})
-
-windowsize_reactive <- reactive({
-  input$windowsize
-})
-
-observe({
-  req(input$flank)
-  req(input$windowsize)
-  if (input$flank %% input$windowsize != 0) {
-    showNotification("Flank value must be divisible by window size!", type = "error")
-  }
-})
-
-# Switching the inputs for the custom feature specification to required arguments
-
-startfeaturereactive <- reactive({
-  switch(input$startfeature,
-         "1" = "TSS",
-         "2" = "TES",
-         "3" = "Exon")
-})
-
-endfeaturereactive <- reactive({
-  switch(input$endfeature,
-         "1" = "TSS",
-         "2" = "TES",
-         "3" = "Exon")
-})
-
-startdirectionreactive <- reactive({
-  switch(input$startdirection,
-         "1" = "up",
-         "2" = "down")
-})
-
-enddirectionreactive <- reactive({
-  switch(input$enddirection,
-         "1" = "up",
-         "2" = "down")
-})
-
-startboundaryreactive <- reactive({
-  switch(input$startboundary,
-         "1" = "3prime",
-         "2" = "5prime")
-})
-
-endboundaryreactive <- reactive({
-  switch(input$endboundary,
-         "1" = "3prime",
-         "2" = "5prime")
-})
-
-saved_regions <- reactiveVal(list())
-region_objects_list <- reactiveVal(list())
-wins_vector <- reactiveVal(c())
-
-observeEvent(input$getregion, {
-  region_file <- if (!is.null(input$Region1)) input$Region1$datapath else NULL
-  region2_file <- if (!is.null(input$Region2)) input$Region2$datapath else NULL
   
-  if (!is.null(input$Region1)) {
-    b <- readBed(region_file)
-    combined_b <- if (!is.null(region2_file)) c(b, readBed(region2_file)) else b
-  } else if (is.null(input$Region1)) {
-    combined_b <- gr()
-  }
+  observeEvent(input$clearsequence, {
+    if(dir.exists(sequence_dir)) {
+      saved_files <- list.files(sequence_dir, full.names = TRUE)
+      for(sequence_path in saved_files) {
+        if(file.exists(sequence_path)) {
+          tryCatch({
+            file.remove(sequence_path)
+            print(paste("File deleted:", sequence_path))
+          }, error = function(e) {
+            print(paste("Error deleting file:", sequence_path, e$message))
+            showNotification(paste("Error deleting file:", basename(sequence_path), e$message), type = "error")
+          })
+        }
+      }
+      showNotification("Saved matrices cleared", type = "warning")
+    }
+  })
   
-  region_name <- input$regionname
-  start_feature <- startfeaturereactive()
-  end_feature <- endfeaturereactive()
-  start_flank <- input$startflank
-  end_flank <- input$endflank
-  start_direction <- startdirectionreactive()
-  end_direction <- enddirectionreactive()
-  window_size <- input$winsize
-  
-  # Create a data frame for the new region
-  new_region <- data.frame(
-    "Region" = region_name,
-    "Start Feature" = start_feature,
-    "End Feature" = end_feature,
-    "Start Flank" = start_flank,
-    "End Flank" = end_flank,
-    "Start direction" = start_direction,
-    "End direction" = end_direction,
-    "Window size" = window_size
-  )
-  
-  current_regions <- saved_regions()
-  saved_regions(c(current_regions, list(new_region)))
-  
-  region_object <- getFeature(
-    object = combined_b,
-    start_feature = start_feature,
-    end_feature = end_feature,
-    start_flank = start_flank,
-    end_flank = end_flank,
-    start_direction = start_direction,
-    end_direction = end_direction
-  )
-  
-  
-  current_region_objects <- region_objects_list() 
-  current_region_objects[[region_name]] <- region_object 
-  region_objects_list(current_region_objects)
-  
-  current_wins <- wins_vector()
-  current_wins[region_name] <- window_size
-  wins_vector(current_wins)
-})
-
-observeEvent(input$clearregions, {
-  saved_regions(list())
-  region_objects_list(list())
-  wins_vector(c())
-})
-
-output$savedRegionsTable <- renderDT({
-  if (input$getFeature == 4) {
-    regions_list <- saved_regions()
-    if (length(regions_list) > 0) {
-      # Combine data frames from the list into a single data frame
-      df <- do.call(rbind, regions_list)
-      datatable(df)
+  read_saved_sequence <- function() {
+    if (dir.exists(sequence_dir)) {
+      saved_files <- list.files(sequence_dir, pattern = "\\.bw$")
+      # Remove ".bw" extension
+      sequence_names <- tools::file_path_sans_ext(saved_files)
+      return(sequence_names)
     } else {
-      datatable(data.frame(Message = "No regions saved yet."))
+      return(character(0))
     }
   }
-})
-
-# Matrix list generation
-
-
-matl <- eventReactive(input$matrixgeneration, {
-  req(input$Sequence1)
   
-  withProgress(message = "Matrix Generation", value = 0, {
+  
+  saved_sequence_poll <- reactivePoll(
+    intervalMillis = 500,
+    session = session,
+    checkFunc = function() {
+      if (dir.exists(sequence_dir)) {
+        saved_files <- list.files(sequence_dir, pattern = "\\.bw$", full.names = TRUE) # Look for .bw files
+        if (length(saved_files) > 0) {
+          # Return a vector of file modification times
+          file.info(saved_files)$mtime
+        } else {
+          # Return a unique value when the directory is empty
+          "empty"
+        }
+      } else {
+        NULL
+      }
+    },
+    valueFunc = read_saved_sequence
+  )
+  
+  
+  observe({
+    sequence_names <- saved_sequence_poll()
+    updateSelectInput(session, "sequencedatafiles",
+                      choices = sequence_names,
+                      selected = NULL)
+  })
+  
+  
+  
+  output$pickgenome <- renderUI({
+    if(input$databasefetch){
+      selectInput(
+        inputId = "genome",
+        label = "Select genome:",
+        choices = c("S.cerevisiae sacCer3" = "sacCer3", "Human hg38" = "hg38"),
+        selected = "sacCer3"
+      )
+    }
+  })
+  
+  output$pickgroup <- renderUI({
+    if(input$databasefetch){
+      selectInput(
+        inputId = "group",
+        label = "Select group:",
+        choices = c("Genes" = "genes"),
+        selected = "genes"
+      )
+    }
+  })
+  
+  output$picktrack <- renderUI({
+    if (input$databasefetch) {
+      if (!is.null(input$genome)) {  # Check if input$genome has a value
+        genome_selected <- input$genome
+        
+        track_choices <- switch(genome_selected,
+                                "sacCer3" = c("RefSeq All" = "ncbiRefSeq", "Ensembl Genes" = "ensGene"),
+                                "hg38" = c("RefSeq All" = "ncbiRefSeq", "UCSC RefSeq" = "refGene", "Ensembl GENCODE V20 Genes" = "wgEncodeGencodeV22ViewGenes")
+        )
+        
+        selectInput(
+          inputId = "track",
+          label = "Select track:",
+          choices = track_choices,
+          selected = track_choices[1]
+        )
+      } else {
+        # Handle the case where input$genome is NULL (e.g., return a default UI)
+        return(NULL) # Or you can return a default select input
+      }
+    } else {
+      return(NULL) # Handle the case where databasefetch is not clicked
+    }
+  })
+  
+  output$getannotation <- renderUI({
+    if(input$databasefetch){
+      actionButton(
+        inputId = "fetchannotation",
+        label = "Fetch annotation file"
+      )
+    }
+  })
+  
+  output$tsvupload <- renderUI({
+    if(input$split){
+      fileInput(
+        inputId = "tsvsplitting",
+        label = "Upload .tsv file for splitting",
+        accept = ".tsv",
+        multiple = FALSE
+      )
+    }
+  })
+  
+  # Fetching the data from UCSC
+  
+  observeEvent(input$fetchannotation, {
+    showNotification("Fetching annotation...", type = "message")
+  })
+  
+  observeEvent(input$fetchannotation, {
+    # Add other debugging print statements here
+  })
+  
+  gr <- eventReactive(input$fetchannotation, {
     
-    regions <- list()
+    fetch <- fetch_UCSC_track_data(input$genome, input$track)
+    columns_to_remove <- c("name", "chrom", "txStart", "txEnd", "strand")
+    mcols <- fetch[, !(names(fetch) %in% columns_to_remove)]
     
+    GRanges(
+      seqnames = fetch$chrom,
+      ranges = IRanges(start = fetch$txStart + 1, end = fetch$txEnd),
+      strand = fetch$strand,
+      name = fetch$name,
+      cdsStart = fetch$cdsStart,
+      cdsEnd = fetch$cdsEnd,
+      exonCount = fetch$exonCount,
+      exonStarts = fetch$exonStarts,
+      exonEnds = fetch$exonEnds,
+      score = fetch$score, 
+      name2 = fetch$name2, 
+      cdsStartStat = fetch$cdsStartStat,
+      cdsEndStat = fetch$cdsEndStat, 
+      exonFrames = fetch$exonFrames
+    )
+  })
+  
+  output$annotationname <- renderPrint({
+    req(input$fetchannotation)
+    observeEvent(input$fetchannotation, { 
+      output$annotationname <- renderPrint({ 
+        paste(input$genome, input$track)
+      })
+    })
+    return(NULL)
+  })
+  
+  region_files_count <- reactive({
+    req(input$Region1)
+    length(input$Region1$datapath)
+  })
+  
+  output$seqfile1_name <- renderText({
+    if(!is.null(input$Sequence1)) {
+      paste(input$Sequence1$name, collapse = ", ")
+    } else {
+      "No files uploaded"
+    }
+  })
+  
+  # Creating reactive objects for the matrix customisation options
+  
+  strand_reactive <- reactive({
+    switch(input$strand,
+           "1" = "no",
+           "2" = "for",
+           "3" = "rev")
+  })
+  
+  flank_reactive <- reactive({
+    input$flank
+  })
+  
+  smooth_reactive <- reactive({
+    input$smooth
+  })
+  
+  windowsize_reactive <- reactive({
+    input$windowsize
+  })
+  
+  observe({
+    req(input$flank)
+    req(input$windowsize)
+    if (input$flank %% input$windowsize != 0) {
+      showNotification("Flank value must be divisible by window size!", type = "error")
+    }
+  })
+  
+  # Switching the inputs for the custom feature specification to required arguments
+  
+  startfeaturereactive <- reactive({
+    switch(input$startfeature,
+           "1" = "TSS",
+           "2" = "TES",
+           "3" = "Exon")
+  })
+  
+  endfeaturereactive <- reactive({
+    switch(input$endfeature,
+           "1" = "TSS",
+           "2" = "TES",
+           "3" = "Exon")
+  })
+  
+  startdirectionreactive <- reactive({
+    switch(input$startdirection,
+           "1" = "up",
+           "2" = "down")
+  })
+  
+  enddirectionreactive <- reactive({
+    switch(input$enddirection,
+           "1" = "up",
+           "2" = "down")
+  })
+  
+  startboundaryreactive <- reactive({
+    switch(input$startboundary,
+           "1" = "3prime",
+           "2" = "5prime")
+  })
+  
+  endboundaryreactive <- reactive({
+    switch(input$endboundary,
+           "1" = "3prime",
+           "2" = "5prime")
+  })
+  
+  saved_regions <- reactiveVal(list())
+  region_objects_list <- reactiveVal(list())
+  wins_vector <- reactiveVal(c())
+  
+  observeEvent(input$getregion, {
     region_file <- if (!is.null(input$Region1)) input$Region1$datapath else NULL
     region2_file <- if (!is.null(input$Region2)) input$Region2$datapath else NULL
-    bigwig_files <- input$Sequence1$datapath
-    bigwig_file_names <- input$Sequence1$name
     
-    print(paste("BED/GTF File Path:", region_file))
-    print(paste("BigWig File Path(s):", paste(bigwig_files, collapse = ", ")))
-    
-    # Import region files and get features
-    
-    if (!is.null(input$Region1)){
+    if (!is.null(input$Region1)) {
       b <- readBed(region_file)
       combined_b <- if (!is.null(region2_file)) c(b, readBed(region2_file)) else b
     } else if (is.null(input$Region1)) {
       combined_b <- gr()
     }
     
+    region_name <- input$regionname
+    start_feature <- startfeaturereactive()
+    start_exon <- if(input$startfeature == 3) input$startexon else NA
+    start_exon_boundary <- if(input$startfeature == 3) input$startexonboundary else NA
+    end_feature <- endfeaturereactive()
+    end_exon <- if(input$endfeature == 3) input$endexon else NA
+    end_exon_boundary <- if(input$endfeature == 3) input$endexonboundary else NA
+    start_flank <- input$startflank
+    end_flank <- input$endflank
+    start_direction <- startdirectionreactive()
+    end_direction <- enddirectionreactive()
+    window_size <- input$winsize
     
-    incProgress(0.1, detail = "Reading region files...")
+    # Create a data frame for the new region
+    new_region <- data.frame(
+      "Region" = region_name,
+      "Start Feature" = start_feature,
+      "Start Exon" = start_exon,
+      "Start Exon Boundary" = start_exon_boundary,
+      "End Feature" = end_feature,
+      "End Exon" = end_exon,
+      "End Exon Boundary" = end_exon_boundary,
+      "Start Flank" = start_flank,
+      "End Flank" = end_flank,
+      "Start Direction" = start_direction,
+      "End Direction" = end_direction,
+      "Window Size" = window_size
+    )
     
-    if (input$getFeature == 1) {
-      features <- getFeature(combined_b, start_feature = "TSS", end_feature = "TES")
-      flank <- getFeature(combined_b, start_flank = input$flank, end_flank = input$flank)
-    } else if (input$getFeature == 2) {
-      features <- getFeature(combined_b, start_feature = "TSS", end_feature = "TSS")
-      flank <- getFeature(combined_b, start_feature = "TSS", end_feature = "TSS", start_flank = input$flank, end_flank = input$flank)
-    } else if (input$getFeature == 3) {
-      features <- getFeature(combined_b, start_feature = "TES", end_feature = "TES")
-      flank <- getFeature(combined_b, start_feature = "TES", end_feature = "TES", start_flank = input$flank, end_flank = input$flank)
-    } else if (input$getFeature == 4) {
-      flank <- getFeature(combined_b, start_flank = 500, end_flank = 500)
-      region_objects <- region_objects_list() # Get the list of region objects
-      grl <- lapply(names(region_objects), function(region_name) {
-        region_objects[[region_name]]
-      })
-      names(grl) <- names(region_objects)
-      print("grl:")
-      print(grl)
-      print(wins_vector())
-    }
+    current_regions <- saved_regions()
+    saved_regions(c(current_regions, list(new_region)))
     
-    incProgress(0.2, detail = "Getting features...")
+    region_object <- getFeature(
+      object = combined_b,
+      start_feature = start_feature,
+      start_exon = if(is.na(start_exon)) NULL else start_exon,
+      start_exon_boundary = if(is.na(start_exon_boundary)) NULL else start_exon_boundary,
+      end_feature = end_feature,
+      end_exon = if(is.na(end_exon)) NULL else end_exon,
+      end_exon_boundary = if(is.na(end_exon_boundary)) NULL else end_exon_boundary,
+      start_flank = start_flank,
+      end_flank = end_flank,
+      start_direction = start_direction,
+      end_direction = end_direction
+    )
     
-    # Filtering names of bigwig files
-    if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
-      fbw <- bigwig_files[grepl("\\.f\\.bw$", bigwig_file_names)]
-      rbw <- bigwig_files[grepl("\\.r\\.bw$", bigwig_file_names)]
-      
-      if (length(fbw) > 0) {
-        names(fbw) <- sub("\\.f\\.bw$", "", bigwig_file_names[grepl("\\.f\\.bw$", bigwig_file_names)])
-        bwf <- importBWlist(fbw, names(fbw), selection = flank)
-      }
-      
-      if (length(rbw) > 0 && length(fbw) > 0) {
-        names(rbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
-        bwr <- importBWlist(rbw, names(rbw), selection = flank)
-      }
-      
-      if (length(fbw) <= 0 && length(rbw) > 0) {
-        fbw <- rbw
-        names(fbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
-        bwf <- importBWlist(fbw, names(fbw), selection = flank)
-      }
-    } else {
-      fbw <- bigwig_files[grepl("\\.bw$", bigwig_file_names)]
-      if (length(fbw) > 0) {
-        names(fbw) <- sub("\\.bw$", "", bigwig_file_names[grepl("\\.bw$", bigwig_file_names)])
-        bwf <- importBWlist(fbw, names(fbw), selection = flank)
-      }
-    }
     
-    incProgress(0.5, detail = "Generating matrices")
+    current_region_objects <- region_objects_list() 
+    current_region_objects[[region_name]] <- region_object 
+    region_objects_list(current_region_objects)
     
-    # Import bigwig files as a list
-    if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
-      if (input$getFeature == 1) {
-        grl <- list("features" = features)
-        matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
-      } else if (input$getFeature == 2 || input$getFeature == 3) {
-        grl <- list("features" = features)
-        matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
-      } else if (input$getFeature == 4) {
-        matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), wins = wins_vector(), strand = strand_reactive(), smooth = smooth_reactive())
-      }
-    } else {
-      if (input$getFeature == 1) {
-        grl <- list("features" = features)
-        matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
-      } else if (input$getFeature == 2 || input$getFeature == 3) {
-        grl <- list("features" = features)
-        matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
-      } else if (input$getFeature == 4) {
-        matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), wins = wins_vector(), strand = strand_reactive(), smooth = smooth_reactive())
-      } 
-    }
-    
-    incProgress(0.9, detail = "Almost finished...")
-    return(matl_result)
+    current_wins <- wins_vector()
+    current_wins[region_name] <- window_size
+    wins_vector(current_wins)
   })
-})
-
-output$matrixnames <- renderText({
-  req(matl())
-  mat_names <- names(matl())
-  if(is.null(mat_names) || length(mat_names) == 0) {
-    return("No matrices generated")
-  }
-  paste(mat_names, collapse = ", ")
-})
-
-# Saving Matrices
-
-# Saving Matrices
-# Reactive values to store saved matrices
-# Ensure user directory is set when logging in
-saved_matrices <- reactiveValues(list = list())
-
-observe({
-  req(session$userData$user_dir)  # Ensure user directory exists
-  save_dir <- file.path(session$userData$user_dir, "matrices")
   
-  if (!dir.exists(save_dir)) {
-    dir.create(save_dir, recursive = TRUE)
-    print(paste("Created directory:", save_dir))  # Debugging statement
-  }
-})
-
-# Function to safely get save_dir
-get_save_dir <- function() {
-  if (!is.null(session$userData$user_dir)) {
-    return(file.path(session$userData$user_dir, "matrices"))
-  } else {
-    return(NULL)  # Return NULL if user is not logged in
-  }
-}
-
-# Reactive polling for saved matrices
-saved_matrices_poll <- reactivePoll(
-  intervalMillis = 1000, 
-  session = session,
-  checkFunc = function() {
-    save_dir <- get_save_dir()
-    if (!is.null(save_dir) && dir.exists(save_dir)) {
-      return(file.info(save_dir)$mtime)
-    } else {
-      return(Sys.time())  # Return current time to avoid NULL issue
+  observeEvent(input$clearregions, {
+    saved_regions(list())
+    region_objects_list(list())
+    wins_vector(c())
+  })
+  
+  output$savedRegionsTable <- renderDT({
+    if (input$getFeature == 4) {
+      regions_list <- saved_regions()
+      if (length(regions_list) > 0) {
+        # Combine data frames from the list into a single data frame
+        df <- do.call(rbind, regions_list)
+        datatable(df)
+      } else {
+        datatable(data.frame(Message = "No regions saved yet."))
+      }
     }
-  },
-  valueFunc = function() {
-    save_dir <- get_save_dir()
-    if (!is.null(save_dir) && dir.exists(save_dir)) {
-      saved_files <- list.files(save_dir, pattern = "\\.rds$")
-      return(gsub("\\.rds$", "", saved_files))
-    } else {
-      return(character(0))
-    }
-  }
-)
-
-# Event to handle saving matrices
-observeEvent(input$savematrices, {
-  req(matl(), session$userData$user_dir)  # Ensure matrices exist & user is logged in
+  })
   
-  save_dir <- get_save_dir()
+  # Matrix list generation
   
-  if (!dir.exists(save_dir)) {
-    dir.create(save_dir, recursive = TRUE)
-    print(paste("Created directory:", save_dir))  # Debugging statement
-  }
   
-  mat_list <- matl()
-  
-  for (mat_name in names(mat_list)) {
-    file_path <- file.path(save_dir, paste0(mat_name, ".rds"))
-    tryCatch({
-      saveRDS(mat_list[[mat_name]], file = file_path)
-      Sys.sleep(0.1)
-      showNotification(paste("Matrix", mat_name, "saved successfully!"), type = "message")
-      print(paste("Saved matrix:", mat_name, "to", file_path))  # Debugging statement
-    }, error = function(e) {
-      showNotification(paste("Error saving matrix", mat_name, ":", e$message), type = "error")
-      print(paste("Error saving matrix:", mat_name, e$message))  # Debugging statement
-    })
-  }
-})
-
-# Display saved matrices
-output$savedmatrices <- renderText({
-  matrix_names <- saved_matrices_poll()
-  if (length(matrix_names) == 0) {
-    return("No matrices saved")
-  } else {
-    return(paste(matrix_names, collapse = ", "))
-  }
-})
-
-# Clear saved matrices
-observeEvent(input$clearmatrices, {
-  req(session$userData$user_dir)
-  save_dir <- get_save_dir()
-  
-  if (dir.exists(save_dir)) {
-    saved_files <- list.files(save_dir, full.names = TRUE)
-    for (file_path in saved_files) {
-      if (file.exists(file_path)) {
-        tryCatch({
-          file.remove(file_path)
-          print(paste("File deleted:", file_path))  # Debugging statement
-        }, error = function(e) {
-          print(paste("Error deleting file:", file_path, e$message)) 
-          showNotification(paste("Error deleting file:", basename(file_path), e$message), type = "error")
+  matl <- eventReactive(input$matrixgeneration, {
+    req(input$Sequence1)
+    
+    withProgress(message = "Matrix Generation", value = 0, {
+      
+      regions <- list()
+      
+      region_file <- if (!is.null(input$Region1)) input$Region1$datapath else NULL
+      region2_file <- if (!is.null(input$Region2)) input$Region2$datapath else NULL
+      bigwig_files <- input$Sequence1$datapath
+      bigwig_file_names <- input$Sequence1$name
+      
+      print(paste("BED/GTF File Path:", region_file))
+      print(paste("BigWig File Path(s):", paste(bigwig_files, collapse = ", ")))
+      
+      # Import region files and get features
+      
+      if (!is.null(input$Region1)){
+        b <- readBed(region_file)
+        combined_b <- if (!is.null(region2_file)) c(b, readBed(region2_file)) else b
+      } else if (is.null(input$Region1)) {
+        combined_b <- gr()
+      }
+      
+      
+      incProgress(0.1, detail = "Reading region files...")
+      
+      if (input$getFeature == 1) {
+        features <- getFeature(combined_b, start_feature = "TSS", end_feature = "TES")
+        flank <- getFeature(combined_b, start_flank = input$flank, end_flank = input$flank)
+      } else if (input$getFeature == 2) {
+        features <- getFeature(combined_b, start_feature = "TSS", end_feature = "TSS")
+        flank <- getFeature(combined_b, start_feature = "TSS", end_feature = "TSS", start_flank = input$flank, end_flank = input$flank)
+      } else if (input$getFeature == 3) {
+        features <- getFeature(combined_b, start_feature = "TES", end_feature = "TES")
+        flank <- getFeature(combined_b, start_feature = "TES", end_feature = "TES", start_flank = input$flank, end_flank = input$flank)
+      } else if (input$getFeature == 4) {
+        flank <- getFeature(combined_b, start_flank = 500, end_flank = 500)
+        region_objects <- region_objects_list() # Get the list of region objects
+        grl <- lapply(names(region_objects), function(region_name) {
+          region_objects[[region_name]]
+        })
+        names(grl) <- names(region_objects)
+        find_min_rows_gr <- function(grl) {
+          num_rows <- sapply(grl, length)
+          min_rows_index <- which.min(num_rows)
+          return(grl[[min_rows_index]])
+        }
+        
+        min_rows_gr <- find_min_rows_gr(grl)
+        
+        grl <- imap(grl, function(gr, index) {
+          names_subset_to <- min_rows_gr$name
+          gr_subset <- gr[gr$name %in% names_subset_to]
+          return(gr_subset)
         })
       }
+      
+      incProgress(0.2, detail = "Getting features...")
+      
+      # Filtering names of bigwig files
+      if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
+        fbw <- bigwig_files[grepl("\\.f\\.bw$", bigwig_file_names)]
+        rbw <- bigwig_files[grepl("\\.r\\.bw$", bigwig_file_names)]
+        
+        if (length(fbw) > 0) {
+          names(fbw) <- sub("\\.f\\.bw$", "", bigwig_file_names[grepl("\\.f\\.bw$", bigwig_file_names)])
+          bwf <- importBWlist(fbw, names(fbw), selection = flank)
+        }
+        
+        if (length(rbw) > 0 && length(fbw) > 0) {
+          names(rbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
+          bwr <- importBWlist(rbw, names(rbw), selection = flank)
+        }
+        
+        if (length(fbw) <= 0 && length(rbw) > 0) {
+          fbw <- rbw
+          names(fbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
+          bwf <- importBWlist(fbw, names(fbw), selection = flank)
+        }
+      } else {
+        fbw <- bigwig_files[grepl("\\.bw$", bigwig_file_names)]
+        if (length(fbw) > 0) {
+          names(fbw) <- sub("\\.bw$", "", bigwig_file_names[grepl("\\.bw$", bigwig_file_names)])
+          bwf <- importBWlist(fbw, names(fbw), selection = flank)
+        }
+      }
+      
+      incProgress(0.5, detail = "Generating matrices")
+      
+      # Import bigwig files as a list
+      if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
+        if (input$getFeature == 1) {
+          grl <- list("features" = features)
+          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
+        } else if (input$getFeature == 2 || input$getFeature == 3) {
+          grl <- list("features" = features)
+          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
+        } else if (input$getFeature == 4) {
+          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), wins = wins_vector(), strand = strand_reactive(), smooth = smooth_reactive())
+        }
+      } else {
+        if (input$getFeature == 1) {
+          grl <- list("features" = features)
+          matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
+        } else if (input$getFeature == 2 || input$getFeature == 3) {
+          grl <- list("features" = features)
+          matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
+        } else if (input$getFeature == 4) {
+          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), wins = wins_vector(), strand = strand_reactive(), smooth = smooth_reactive())
+        } 
+      }
+      
+      incProgress(0.9, detail = "Almost finished...")
+      return(matl_result)
+    })
+  })
+  
+  output$matrixnames <- renderText({
+    req(matl())
+    mat_names <- names(matl())
+    if(is.null(mat_names) || length(mat_names) == 0) {
+      return("No matrices generated")
     }
-    showNotification("Saved matrices cleared", type = "warning")
+    paste(mat_names, collapse = ", ")
+  })
+  
+  # Saving Matrices
+  
+  # Saving Matrices
+  # Reactive values to store saved matrices
+  # Ensure user directory is set when logging in
+  saved_matrices <- reactiveValues(list = list())
+  
+  observe({
+    req(session$userData$user_dir)  # Ensure user directory exists
+    save_dir <- file.path(session$userData$user_dir, "matrices")
+    
+    if (!dir.exists(save_dir)) {
+      dir.create(save_dir, recursive = TRUE)
+      print(paste("Created directory:", save_dir))  # Debugging statement
+    }
+  })
+  
+  # Function to safely get save_dir
+  get_save_dir <- function() {
+    if (!is.null(session$userData$user_dir)) {
+      return(file.path(session$userData$user_dir, "matrices"))
+    } else {
+      return(NULL)  # Return NULL if user is not logged in
+    }
   }
   
-  updateCheckboxGroupInput(session, "selectedmatrices", choices = character(0), selected = NULL)
-})
-
-# Update UI with saved matrices
-observe({
-  matrix_names <- saved_matrices_poll()
-  updateCheckboxGroupInput(session, "selectedmatrices",
-                           choices = matrix_names,
-                           selected = NULL)
-})
-
-
-
-
+  # Reactive polling for saved matrices
+  saved_matrices_poll <- reactivePoll(
+    intervalMillis = 1000, 
+    session = session,
+    checkFunc = function() {
+      save_dir <- get_save_dir()
+      if (!is.null(save_dir) && dir.exists(save_dir)) {
+        return(file.info(save_dir)$mtime)
+      } else {
+        return(Sys.time())  # Return current time to avoid NULL issue
+      }
+    },
+    valueFunc = function() {
+      save_dir <- get_save_dir()
+      if (!is.null(save_dir) && dir.exists(save_dir)) {
+        saved_files <- list.files(save_dir, pattern = "\\.rds$")
+        return(gsub("\\.rds$", "", saved_files))
+      } else {
+        return(character(0))
+      }
+    }
+  )
+  
+  # Event to handle saving matrices
+  observeEvent(input$savematrices, {
+    req(matl(), session$userData$user_dir)  # Ensure matrices exist & user is logged in
+    
+    save_dir <- get_save_dir()
+    
+    if (!dir.exists(save_dir)) {
+      dir.create(save_dir, recursive = TRUE)
+      print(paste("Created directory:", save_dir))  # Debugging statement
+    }
+    
+    mat_list <- matl()
+    
+    for (mat_name in names(mat_list)) {
+      file_path <- file.path(save_dir, paste0(mat_name, ".rds"))
+      tryCatch({
+        saveRDS(mat_list[[mat_name]], file = file_path)
+        Sys.sleep(0.1)
+        showNotification(paste("Matrix", mat_name, "saved successfully!"), type = "message")
+        print(paste("Saved matrix:", mat_name, "to", file_path))  # Debugging statement
+      }, error = function(e) {
+        showNotification(paste("Error saving matrix", mat_name, ":", e$message), type = "error")
+        print(paste("Error saving matrix:", mat_name, e$message))  # Debugging statement
+      })
+    }
+  })
+  
+  # Display saved matrices
+  output$savedmatrices <- renderText({
+    matrix_names <- saved_matrices_poll()
+    if (length(matrix_names) == 0) {
+      return("No matrices saved")
+    } else {
+      return(paste(matrix_names, collapse = ", "))
+    }
+  })
+  
+  # Clear saved matrices
+  observeEvent(input$clearmatrices, {
+    req(session$userData$user_dir)
+    save_dir <- get_save_dir()
+    
+    if (dir.exists(save_dir)) {
+      saved_files <- list.files(save_dir, full.names = TRUE)
+      for (file_path in saved_files) {
+        if (file.exists(file_path)) {
+          tryCatch({
+            file.remove(file_path)
+            print(paste("File deleted:", file_path))  # Debugging statement
+          }, error = function(e) {
+            print(paste("Error deleting file:", file_path, e$message)) 
+            showNotification(paste("Error deleting file:", basename(file_path), e$message), type = "error")
+          })
+        }
+      }
+      showNotification("Saved matrices cleared", type = "warning")
+    }
+    
+    updateCheckboxGroupInput(session, "selectedmatrices", choices = character(0), selected = NULL)
+  })
+  
+  # Update UI with saved matrices
+  observe({
+    matrix_names <- saved_matrices_poll()
+    updateCheckboxGroupInput(session, "selectedmatrices",
+                             choices = matrix_names,
+                             selected = NULL)
+  })
+  
+  
+  
+  
   
   ### enrichedHeatmap Heatmaps
   
