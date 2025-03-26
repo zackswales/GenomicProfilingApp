@@ -175,7 +175,7 @@ server <- function(input, output, session) {
   })
   
   output$tsvupload <- renderUI({
-    if(input$split){
+    if (input$split) {
       fileInput(
         inputId = "tsvsplitting",
         label = "Upload .tsv file for splitting",
@@ -184,6 +184,29 @@ server <- function(input, output, session) {
       )
     }
   })
+  
+  output$splitselect <- renderUI({
+    if(input$split){
+      selectInput(
+        inputId = "splitby",
+        label = "Select column to split by:",
+        choices = column_choices(),
+        selected = column_choices()[1]
+      )
+    }
+  })
+  
+  column_choices <- reactiveVal(NULL)
+  
+  observeEvent(input$tsvsplitting, {
+    if(!is.null(input$tsvsplitting)) {
+      annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+      column_choices(colnames(annotation))
+    } else {
+      columns_choices(NULL)
+    }
+  })
+  
   
   # Fetching the data from UCSC
   
@@ -659,35 +682,42 @@ server <- function(input, output, session) {
   
   # Creating the conditional splitting object
   split_reactive <- reactive({
-    req(input$split)
-    region_file <- input$Region1$datapath
+    req(input$split, input$tsvsplitting$datapath, input$splitby, matl()[[1]])
+    
     annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
-    colnames(annotation) <- c("gene_name", "family")
-    Anno <- data.frame(name = c(rownames(matl()[[1]]))) |>
-      left_join(data.frame(name = annotation$gene_name, Family = factor(annotation$family)), by = "name") |>
+    colnames(annotation)[1] <- "gene_name"
+    
+    split_col <- input$splitby
+    if (!split_col %in% colnames(annotation)) {
+      stop("Selected column not found in annotation file.")
+    }
+    
+    Anno <- data.frame(name = rownames(matl()[[1]])) %>%
+      left_join(data.frame(name = annotation$gene_name, split_val = factor(annotation[[split_col]])), by = "name") %>%
       column_to_rownames("name")
+    
     return(Anno)
   })
   
   
   split_cols_reactive <- reactive({
     req(split_reactive())
-    unique_families <- unique(split_reactive()$Family)
+    unique_families <- unique(split_reactive()$split_val)
     
     if (length(unique_families) == 2) {
       # Create named vector directly with backticks
       colors <- c("#DA4167", "#083D77")
       names(colors) <- unique_families[1:2]
-      list(Family = colors)
+      list(split_val = colors)
     } else if (length(unique_families) > 2) {
       # Assign colors from a palette for more than two unique values
       color_palette <- grDevices::rainbow(length(unique_families))
       names(color_palette) <- unique_families
-      names(color_palette) <- paste0("`",names(color_palette),"`") # Add backticks to the names.
-      list(Family = color_palette)
+      names(color_palette) <- paste0("`", names(color_palette), "`") # Add backticks to the names.
+      list(split_val = color_palette)
     } else {
       # Handle cases with 0 or 1 unique values
-      list(Family = c("default" = "gray"))
+      list(split_val = c("default" = "gray"))
     }
   })
   
@@ -819,6 +849,7 @@ server <- function(input, output, session) {
         show_row_names = show_row_names_reactive(),
         min_quantile = heatmap_min_quantile_reactive(), 
         max_quantile = heatmap_max_quantile_reactive(),
+        row_km = imput$row_km,
         ylim = c(0, max_ylim_reactive())
       )
     } else {
@@ -830,7 +861,8 @@ server <- function(input, output, session) {
         show_row_names = show_row_names_reactive(),
         min_quantile = heatmap_min_quantile_reactive(), 
         max_quantile = heatmap_max_quantile_reactive(),
-        ylim = c(0, max_ylim_reactive())
+        ylim = c(0, max_ylim_reactive()),
+        row_km = input$row_km
       )
     }
     

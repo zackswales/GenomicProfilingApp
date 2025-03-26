@@ -43,6 +43,10 @@ mod_data_processing_ui <- function(id) {
               condition = "input.split == 1",
               uiOutput("tsvupload")
             ),
+            conditionalPanel(
+              condition = "input.split == 1",
+              uiOutput("splitselect")
+            ),
             selectInput(
               inputId = "sequencedatafiles",
               label = "Select existing sequence data files:",

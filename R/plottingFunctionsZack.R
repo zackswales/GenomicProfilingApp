@@ -161,7 +161,7 @@ matList <- function(bwf,bwr,names,grl,wins=list("Gene"=10),mode="coverage",outpu
 
 # encrichedHeatmap list function
 
-hmList <- function(matl,wins,split=NULL,split_cols,max_quantile=0.99,min_quantile=0,col_fun="red",show_row_names=T,win_labels=NULL,ylim=NULL,summarise_by="mean",axis_labels=""){
+hmList <- function(matl,wins,split=NULL,split_cols,max_quantile=0.99,min_quantile=0,col_fun="red",show_row_names=T,win_labels=NULL,ylim=NULL,summarise_by="mean",axis_labels="", row_km = 1){
   
   ## ColourMap
   reds = RColorBrewer::brewer.pal(n=9,name="Reds")
@@ -206,6 +206,7 @@ hmList <- function(matl,wins,split=NULL,split_cols,max_quantile=0.99,min_quantil
                                          row_names_gp=gpar(fontsize=5),
                                          axis_name = axis_labels,
                                          row_split = split,
+                                         row_km = row_km,
                                          column_title_gp = gpar(fontsize = 10),
                                          #show_heatmap_legend = FALSE,
                                          cluster_rows = F,
@@ -225,6 +226,7 @@ hmList <- function(matl,wins,split=NULL,split_cols,max_quantile=0.99,min_quantil
                                          row_names_gp=gpar(fontsize=5),
                                          axis_name = axis_labels,
                                          column_title_gp = gpar(fontsize = 10),
+                                         row_km = row_km,
                                          #show_heatmap_legend = FALSE,
                                          cluster_rows = F,
                                          top_annotation = c(HeatmapAnnotation(Features = features,show_legend = T,border = T,col = list(Features=fcols),show_annotation_name = F,

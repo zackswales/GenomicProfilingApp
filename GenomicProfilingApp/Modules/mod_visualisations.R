@@ -49,6 +49,20 @@ mod_visualisations_ui <- function(id){
               label = "Show row names",
               value = FALSE
             ),
+            checkboxInput(
+              inputId = "kmeansclustering",
+              label = "K-means clustering:",
+              value = FALSE
+            ),
+            conditionalPanel(
+              condition = "input.kmeansclustering == 1",
+              numericInput(
+                inputId = "row_km",
+                label = "Select number of clusters:",
+                min = 1,
+                value = 1
+              )
+            ),
             actionButton(
               inputId = "heatmapplotbutton",
               label = "Plot Output"
