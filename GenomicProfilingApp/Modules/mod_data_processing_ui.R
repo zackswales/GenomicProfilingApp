@@ -66,17 +66,13 @@ mod_data_processing_ui <- function(id) {
               condition = "input.newsequence == 1",
               fileInput(
                 inputId = "Sequence1",
-                label = "Upload sequence data files (.bw)",
+                label = "Upload sequence data file (.bw)",
                 accept = ".bw",
-                multiple = TRUE
-              ),
-              textInput(
-                inputId = "sequencenames",
-                label = "File name for uploaded sequenece data files"
+                multiple = FALSE
               ),
               actionButton(
                 inputId = "savesequencedata",
-                label = "Save sequence data files"
+                label = "Save sequence data file"
               )
             ),
             radioButtons(
@@ -279,6 +275,10 @@ mod_data_processing_ui <- function(id) {
             actionButton(
               inputId = "matrixgeneration",
               label = "Generate Matrices"
+            ),
+            actionButton(
+              inputId = "testfiles",
+              label = "Test files"
             ),
             verbatimTextOutput("matrixResult"),
             actionButton(

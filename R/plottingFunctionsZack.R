@@ -27,6 +27,7 @@ library(ggplot2)
 library(patchwork)
 library(DT)
 library(scales)
+library(fs)
 # library(UCSC.utils)
 
 ## NOTES

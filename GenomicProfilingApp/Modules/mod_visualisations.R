@@ -51,7 +51,7 @@ mod_visualisations_ui <- function(id){
             ),
             checkboxInput(
               inputId = "kmeansclustering",
-              label = "K-means clustering:",
+              label = "k-Means clustering",
               value = FALSE
             ),
             conditionalPanel(
