@@ -146,6 +146,16 @@ mod_visualisations_ui <- function(id){
               label = "Enter plot title:",
               value = "Average profile plot"
             ),
+            textInput(
+              inputId = "unit",
+              label = "Y-axis label:",
+              value = "Coverage (BPM)"
+            ),
+            textInput(
+              inputId = "feature",
+              label = "X-axis label:",
+              value = "Gene"
+            ),
             sliderInput(
               inputId = "averageprofilequantiles",
               label = "Set quantile range:",

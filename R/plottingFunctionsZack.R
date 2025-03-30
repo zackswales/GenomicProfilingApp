@@ -158,6 +158,12 @@ matList <- function(bwf,bwr,names,grl,wins=list("Gene"=10),mode="coverage",outpu
   else if(output == "matrix"){
     matl |> map(~as.data.frame(.x) |> as.matrix())
   }
+  if(log == T){
+    matl <- lapply(matl, function(x) {
+      x[is.infinite(x) & x < 0] <- 0
+      return(x)
+    })
+  }
 }    
 
 # encrichedHeatmap list function

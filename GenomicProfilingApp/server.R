@@ -17,113 +17,105 @@ server <- function(input, output, session) {
   ## Saving sequence data files
   
   saved_sequence <- reactiveValues(list = list())
-  sequence_dir <- file.path("users", "s2274585", "sequence data files")
   
-  read_sequence_files <- function() {
-    if (dir.exists(sequence_dir)) {
-      save_files <- list.files(sequence_dir, pattern = "\\.rds$")
-      sequence_names <- gsub("\\.rds$", "", save_files)
-      return(sequence_names)
+  observe({
+    req(session$user$userData)
+    sequence_dir <- file.path(session$userData$user_dir, "sequence data files")
+    
+    if(!dir.exists(sequence_dir)) {
+      dir.create(sequence_dir, recursive = TRUE)
+      print(paste("Created directory:", sequence_dir))
+    }
+  })
+  
+  get_sequence_dir <- function() {
+    if(!is.null(session$userData$user_dir)){
+      return(file.path(session$userData$user_dir, "sequence data files"))
     } else {
-      return(character(0))
+      return(NULL)
     }
   }
   
+  saved_sequence_poll <- reactivePoll(
+    intervalMillis = 1000,
+    session = session,
+    checkFunc = function() {
+      sequence_dir <- get_sequence_dir()
+      if(!is.null(sequence_dir) && dir.exists(sequence_dir)){
+        return(file.info(sequence_dir)$mtime)
+      } else {
+        return(Sys.time())
+      }
+    },
+    valueFunc = function() {
+      sequence_dir <- get_sequence_dir()
+      if(!is.null(sequence_dir) && dir.exists(sequence_dir)) {
+        sequence_files <- list.files(sequence_dir, pattern = "\\.rds$")
+        return(gsub("\\.rds$", "", sequence_files))
+      } else {
+        return(character(0))
+      }
+    }
+  )
+  
   observeEvent(input$savesequencedata, {
-    sequence_name <- input$sequencenames # Get the desired file name from textInput
-    sequence_dir <- file.path("users", "s2274585", "sequence data files")
+    req(input$Sequence1, session$userData$user_dir)
     
-    if (!dir.exists(sequence_dir)) {
+    sequence_dir <- get_sequence_dir()
+    
+    if(!dir.exists(sequence_dir)) {
       dir.create(sequence_dir, recursive = TRUE)
+      print(paste("Created directory:", sequence_dir))
     }
-    
-    if (nchar(sequence_name) == 0) {
-      showNotification("Please enter a sequence name.", type = "error")
-      return()
-    }
-    
-    # Copy uploaded files to the sequence data files directory
-    uploaded_files <- input$Sequence1
-    new_file_name <- paste0(input$sequencenames, ".", tools::file_ext(uploaded_files$name)) # Use the name from textInput
-    new_file_path <- file.path(sequence_dir, new_file_name)
-    file.copy(uploaded_files$datapath, new_file_path)
-    
-    # No RDS saving
     
     tryCatch({
-      # ... any other actions you want to perform after saving ...
-      showNotification(paste("Sequence", sequence_name, "saved successfully!"), type = "message")
+      filepath <- input$Sequence1$datapath
+      filename <- input$Sequence1$name
+      bigwig <- import.bw(filepath)
+      RDS <- saveRDS(object = bigwig, file = file.path(sequence_dir, paste0(filename, ".rds")))
+      showNotification(paste0("Sequence data file", "", filename, "", "saved successfully!"), type = "message")
     }, error = function(e) {
-      showNotification(paste("Error saving sequence", sequence_name, ":", e$message), type = "error")
+      showNotification(paste("Error saving sequence data file", e$message), type = "error")
     })
   })
   
-  observeEvent(input$clearsequence, {
-    if(dir.exists(sequence_dir)) {
-      saved_files <- list.files(sequence_dir, full.names = TRUE)
-      for(sequence_path in saved_files) {
-        if(file.exists(sequence_path)) {
-          tryCatch({
-            file.remove(sequence_path)
-            print(paste("File deleted:", sequence_path))
-          }, error = function(e) {
-            print(paste("Error deleting file:", sequence_path, e$message))
-            showNotification(paste("Error deleting file:", basename(sequence_path), e$message), type = "error")
-          })
-        }
-      }
-      showNotification("Saved matrices cleared", type = "warning")
-    }
-  })
-  
-  read_saved_sequence <- function() {
-    if (dir.exists(sequence_dir)) {
-      saved_files <- list.files(sequence_dir, pattern = "\\.bw$")
-      # Remove ".bw" extension
-      sequence_names <- tools::file_path_sans_ext(saved_files)
-      return(sequence_names)
-    } else {
-      return(character(0))
-    }
-  }
-  
-  
-  saved_sequence_poll <- reactivePoll(
-    intervalMillis = 500,
-    session = session,
-    checkFunc = function() {
-      if (dir.exists(sequence_dir)) {
-        saved_files <- list.files(sequence_dir, pattern = "\\.bw$", full.names = TRUE) # Look for .bw files
-        if (length(saved_files) > 0) {
-          # Return a vector of file modification times
-          file.info(saved_files)$mtime
-        } else {
-          # Return a unique value when the directory is empty
-          "empty"
-        }
-      } else {
-        NULL
-      }
-    },
-    valueFunc = read_saved_sequence
-  )
-  
-  
   observe({
-    sequence_names <- saved_sequence_poll()
+    sequence_selection <- saved_sequence_poll()
     updateSelectInput(session, "sequencedatafiles",
-                      choices = sequence_names,
+                      choices = sequence_selection,
                       selected = NULL)
   })
   
+  observeEvent(input$clearsequence, {
+    req(session$userData$user_dir)
+    sequence_dir <- get_sequence_dir()
+    
+      if(dir.exists(sequence_dir)){
+        rds_files <- dir_ls(sequence_dir, glob = "*.rds")
+        
+        if(length(rds_files) > 0){
+          file_delete(rds_files)
+          showNotification("Sequence data files cleared successfully", type = "message")
+        } else {
+          showNotification("No sequence data files found in directory", type = "warning")
+        }
+      } else {
+        showNotification("Directory does not exist", type = "error")
+      }
+  })
   
+  
+  
+  
+  
+  ## Database annotation fetching
   
   output$pickgenome <- renderUI({
     if(input$databasefetch){
       selectInput(
         inputId = "genome",
         label = "Select genome:",
-        choices = c("S.cerevisiae sacCer3" = "sacCer3", "Human hg38" = "hg38"),
+        choices = c("S.cerevisiae sacCer3" = "sacCer3", "Human hg38" = "hg38", "Mouse mm39" = "mm39"),
         selected = "sacCer3"
       )
     }
@@ -147,7 +139,8 @@ server <- function(input, output, session) {
         
         track_choices <- switch(genome_selected,
                                 "sacCer3" = c("RefSeq All" = "ncbiRefSeq", "Ensembl Genes" = "ensGene"),
-                                "hg38" = c("RefSeq All" = "ncbiRefSeq", "UCSC RefSeq" = "refGene", "Ensembl GENCODE V20 Genes" = "wgEncodeGencodeV22ViewGenes")
+                                "hg38" = c("RefSeq All" = "ncbiRefSeq", "UCSC RefSeq" = "refGene", "Ensembl GENCODE V20 Genes" = "wgEncodeGencodeV22ViewGenes"),
+                                "mm39" = c("RefSeq All" = "ncbiRefSeq", "UCSC RefSeq" = "refGene", "GENCODE VM36" = "knownGene")
         )
         
         selectInput(
@@ -280,6 +273,10 @@ server <- function(input, output, session) {
   
   smooth_reactive <- reactive({
     input$smooth
+  })
+  
+  log_reactive <- reactive({
+    input$log
   })
   
   windowsize_reactive <- reactive({
@@ -424,23 +421,52 @@ server <- function(input, output, session) {
     }
   })
   
+  observeEvent(input$testfiles, {
+    sequence_dir <- get_sequence_dir()
+    
+    all_rds_files <- list.files(sequence_dir, pattern = "\\.rds$", full.names = TRUE)
+    
+    all_rds_files_no_ext <- all_rds_file_names_no_ext <- tools::file_path_sans_ext(basename(all_rds_files))
+    
+    selected_rds_files <- all_rds_files[all_rds_file_names_no_ext %in% input$sequencedatafiles]
+    
+    bigwig_files <- lapply(selected_rds_files, readRDS)
+    names(bigwig_files) <- tools::file_path_sans_ext(basename(selected_rds_files))
+    bigwig_file_names <- names(bigwig_files)
+    
+    sample1 <- readRDS("~/GenomicProfilingApp/GenomicProfilingApp/users/s2274585/sequence data files/sample1.f.bw.rds")
+    print(sample1)
+    print(bigwig_files[[1]])
+    print(bigwig_files[[2]])
+    print(bigwig_file_names)
+    print(paste("selected rds files:", selected_rds_files))
+  })
+  
+  
   # Matrix list generation
   
   
   matl <- eventReactive(input$matrixgeneration, {
-    req(input$Sequence1)
+    req(input$sequencedatafiles)
     
     withProgress(message = "Matrix Generation", value = 0, {
       
       regions <- list()
       
+      sequence_dir <- get_sequence_dir()
+      
       region_file <- if (!is.null(input$Region1)) input$Region1$datapath else NULL
       region2_file <- if (!is.null(input$Region2)) input$Region2$datapath else NULL
-      bigwig_files <- input$Sequence1$datapath
-      bigwig_file_names <- input$Sequence1$name
       
-      print(paste("BED/GTF File Path:", region_file))
-      print(paste("BigWig File Path(s):", paste(bigwig_files, collapse = ", ")))
+      all_rds_files <- list.files(sequence_dir, pattern = "\\.rds$", full.names = TRUE)
+      
+      all_rds_file_names_no_ext <- tools::file_path_sans_ext(basename(all_rds_files))
+      
+      selected_rds_files <- all_rds_files[all_rds_file_names_no_ext %in% input$sequencedatafiles]
+      
+      bigwig_files <- lapply(selected_rds_files, readRDS)
+      names(bigwig_files) <- tools::file_path_sans_ext(basename(selected_rds_files))
+      bigwig_file_names <- names(bigwig_files)
       
       # Import region files and get features
       
@@ -489,29 +515,25 @@ server <- function(input, output, session) {
       
       # Filtering names of bigwig files
       if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
-        fbw <- bigwig_files[grepl("\\.f\\.bw$", bigwig_file_names)]
-        rbw <- bigwig_files[grepl("\\.r\\.bw$", bigwig_file_names)]
+        bwf <- bigwig_files[grepl("\\.f\\.bw$", bigwig_file_names)]
+        bwr <- bigwig_files[grepl("\\.r\\.bw$", bigwig_file_names)]
         
-        if (length(fbw) > 0) {
-          names(fbw) <- sub("\\.f\\.bw$", "", bigwig_file_names[grepl("\\.f\\.bw$", bigwig_file_names)])
-          bwf <- importBWlist(fbw, names(fbw), selection = flank)
+        if (length(bwf) > 0) {
+          names(bwf) <- sub("\\.f\\.bw$", "", bigwig_file_names[grepl("\\.f\\.bw$", bigwig_file_names)])
         }
         
-        if (length(rbw) > 0 && length(fbw) > 0) {
-          names(rbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
-          bwr <- importBWlist(rbw, names(rbw), selection = flank)
+        if (length(bwr) > 0 && length(bwf) > 0) {
+          names(bwr) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
         }
         
-        if (length(fbw) <= 0 && length(rbw) > 0) {
-          fbw <- rbw
-          names(fbw) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
-          bwf <- importBWlist(fbw, names(fbw), selection = flank)
+        if (length(bwf) <= 0 && length(bwr) > 0) {
+          bwf <- bwr
+          names(bwf) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
         }
       } else {
-        fbw <- bigwig_files[grepl("\\.bw$", bigwig_file_names)]
-        if (length(fbw) > 0) {
-          names(fbw) <- sub("\\.bw$", "", bigwig_file_names[grepl("\\.bw$", bigwig_file_names)])
-          bwf <- importBWlist(fbw, names(fbw), selection = flank)
+        bwf <- bigwig_files[grepl("\\.bw$", bigwig_file_names)]
+        if (length(bwf) > 0) {
+          names(bwf) <- sub("\\.bw$", "", bigwig_file_names[grepl("\\.bw$", bigwig_file_names)])
         }
       }
       
@@ -521,7 +543,7 @@ server <- function(input, output, session) {
       if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
         if (input$getFeature == 1) {
           grl <- list("features" = features)
-          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
+          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive(), log = log_reactive())
         } else if (input$getFeature == 2 || input$getFeature == 3) {
           grl <- list("features" = features)
           matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
@@ -658,7 +680,7 @@ server <- function(input, output, session) {
           })
         }
       }
-      showNotification("Saved matrices cleared", type = "warning")
+      showNotification("Saved matrices cleared", type = "message")
     }
     
     updateCheckboxGroupInput(session, "selectedmatrices", choices = character(0), selected = NULL)
@@ -822,8 +844,10 @@ server <- function(input, output, session) {
   
   # Creating the heatmaps
   
-  observe ({
-    if (input$heatmapplotbutton > 0) {
+  observeEvent(input$heatmapplotbutton, {
+    if(length(input$selectedmatrices) == 0){
+      showNotification("Matrices need to be selected before plotting", type = "warning")
+    } else {
       showNotification("Plotting output...", type = "message")
     }
   })
@@ -1205,6 +1229,14 @@ server <- function(input, output, session) {
     }
   })
   
+  unit_reactive <- reactive({
+    input$unit
+  })
+  
+  feature_reactive <- reactive({
+    input$feature
+  })
+  
   
   
   # Creating the average profile plot
@@ -1224,10 +1256,10 @@ server <- function(input, output, session) {
   average_profile <- eventReactive(input$averageprofileplotbutton, {
     req(matl())
     if(input$split){
-      average_profile <- mplot(matl = selected_matrices_reactive(), split = split_reactive(),colmap = split_average_cols_reactive()[[input$colourby]], title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive(), colour_by = input$colourby,facet = facet_reactive(), facet_scale = "free",facet_independent = T,facet_type="grid")
+      average_profile <- mplot(matl = selected_matrices_reactive(), split = split_reactive(),colmap = split_average_cols_reactive()[[input$colourby]], feature = feature_reactive(), unit = unit_reactive(), title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive(), colour_by = input$colourby,facet = facet_reactive(), facet_scale = "free",facet_independent = T,facet_type="grid")
       return(average_profile)
     } else {
-      average_profile <- mplot(matl = selected_matrices_reactive(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
+      average_profile <- mplot(matl = selected_matrices_reactive(), colmap = colmap, feature = feature_reactive(), unit = unit_reactive(), title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
       return(average_profile)
     }
   })
