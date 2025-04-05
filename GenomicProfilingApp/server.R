@@ -421,26 +421,6 @@ server <- function(input, output, session) {
     }
   })
   
-  observeEvent(input$testfiles, {
-    sequence_dir <- get_sequence_dir()
-    
-    all_rds_files <- list.files(sequence_dir, pattern = "\\.rds$", full.names = TRUE)
-    
-    all_rds_files_no_ext <- all_rds_file_names_no_ext <- tools::file_path_sans_ext(basename(all_rds_files))
-    
-    selected_rds_files <- all_rds_files[all_rds_file_names_no_ext %in% input$sequencedatafiles]
-    
-    bigwig_files <- lapply(selected_rds_files, readRDS)
-    names(bigwig_files) <- tools::file_path_sans_ext(basename(selected_rds_files))
-    bigwig_file_names <- names(bigwig_files)
-    
-    sample1 <- readRDS("~/GenomicProfilingApp/GenomicProfilingApp/users/s2274585/sequence data files/sample1.f.bw.rds")
-    print(sample1)
-    print(bigwig_files[[1]])
-    print(bigwig_files[[2]])
-    print(bigwig_file_names)
-    print(paste("selected rds files:", selected_rds_files))
-  })
   
   
   # Matrix list generation
@@ -543,7 +523,7 @@ server <- function(input, output, session) {
       if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
         if (input$getFeature == 1) {
           grl <- list("features" = features)
-          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive(), log = log_reactive())
+          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
         } else if (input$getFeature == 2 || input$getFeature == 3) {
           grl <- list("features" = features)
           matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
@@ -873,8 +853,9 @@ server <- function(input, output, session) {
         show_row_names = show_row_names_reactive(),
         min_quantile = heatmap_min_quantile_reactive(), 
         max_quantile = heatmap_max_quantile_reactive(),
-        row_km = imput$row_km,
-        ylim = c(0, max_ylim_reactive())
+        row_km = input$row_km,
+        ylim = c(0, max_ylim_reactive()),
+        log2 = input$logenriched
       )
     } else {
       hml <- hmList(
@@ -886,7 +867,8 @@ server <- function(input, output, session) {
         min_quantile = heatmap_min_quantile_reactive(), 
         max_quantile = heatmap_max_quantile_reactive(),
         ylim = c(0, max_ylim_reactive()),
-        row_km = input$row_km
+        row_km = input$row_km,
+        log2 = input$logenriched
       )
     }
     
@@ -940,172 +922,46 @@ server <- function(input, output, session) {
     }
   )
   
+  ## ggplot heatmap
   
-  ## ggplot Heatmaps
-  
-  # Reactive customisation options for the heatmaps
-  
-  ggshow_row_names_reactive <- reactive({
-    input$ggshowrownames
+  zscaling_reactive <- reactive({
+    if(input$autoz == TRUE){
+      z <- "auto"
+    } else {
+      z <- NULL
+    }
+    return(z)
   })
   
-  ggheatmap_col_fun_reactive <- reactive({
-    switch(input$ggheatmap_col_fun,
-           "1" = "red",
-           "2" = "bl2rd",
-           "3" = "red0")
-  })
-  
-  ggheatmap_min_quantile_reactive <- reactive({
-    input$ggheatmapquantiles[1]
-  })
-  
-  ggheatmap_max_quantile_reactive <- reactive({
-    input$ggheatmapquantiles[2]
-  })
-  
-  ggmax_ylim_reactive <- reactive({
-    input$ggmaxylim
-  })
-  
-  ggwins_reactive <- reactive({
-    req(flank_reactive(), windowsize_reactive())
-    
-    if (input$getFeature == 1) {
-      return(c(
-        "Upstream" = flank_reactive() / windowsize_reactive(), 
-        "Feature" = (2 * flank_reactive()) / windowsize_reactive(), 
-        "Downstream" = flank_reactive() / windowsize_reactive()
-      ))
-    }
-    if (input$getFeature == 2 || input$getFeature == 3) {
-      return(c(
-        "Upstream" = flank_reactive() / windowsize_reactive(), 
-        "Feature" = 1, 
-        "Downstream" = flank_reactive() / windowsize_reactive()
-      ))
-    }
-    if (input$getFeature == 4){
-      wins <- c("up" = input$up, "exon1" = input$exon1, "intron1" = input$intron1, "body" = input$body, "down" = input$down)
-      return(wins)
-    }
-    else {
-      return(NULL)
-    }
-  })
-  
-  
-  ggaxis_labels_reactive <- reactive({
-    req(flank_reactive(), input$getFeature)
-    
-    if(input$getFeature == 1){
-      x <- flank_reactive()
-      return(c(paste0("-", x, "b"), "TSS", "TES", paste0("+", x, "b")))
-    }
-    
-    if(input$getFeature == 2){
-      x <- flank_reactive()
-      return(c(paste0("-", x, "b"), "TSS", paste0("+", x, "b")))
-    }
-    
-    if(input$getFeature == 3){
-      x <- flank_reactive()
-      return(c(paste0("-", x, "b"), "TES", paste0("+", x, "b")))
-    }
-    
-    if(input$getFeature == 4){
-      x <- flank_reactive()
-      return(c(paste0("-", x, "b"), paste0("+", x, "b")))
-    }
-  })
-  
-  
-  # ggplot Heatmaps
-  
-  observe ({
-    if (input$ggplotheatmapplotbutton > 0) {
+  observeEvent(input$plotggheatmap, {
+    if(length(input$selectedmatrices) == 0){
+      showNotification("Matrices need to be selected before plotting", type = "warning")
+    } else {
       showNotification("Plotting output...", type = "message")
     }
   })
   
-  output$ggplotHeatmapPlot <- renderPlot({
+  output$ggplotheatmap <- renderPlot({
     req(gghml())
     req(length(gghml()) > 0)
-    combined_plot <- wrap_plots(gghml(), nrow = 1) 
-    print(combined_plot)
-  })
+    gghml()
+  }, height = 1000)
   
-  gghml <- eventReactive(input$ggplotheatmapplotbutton, {
+  gghml <- eventReactive(input$plotggheatmap, {
     req(selected_matrices_reactive())
-    
-    if(isTRUE(input$split)) {
-      gghml <- gghmList(
-        matl = selected_matrices_reactive(),
-        wins = ggwins_reactive(),
-        split = split_reactive(),
-        split_cols = split_cols_reactive(),
-        col_fun = ggheatmap_col_fun_reactive(),
-        axis_labels = ggaxis_labels_reactive(),
-        show_row_names = ggshow_row_names_reactive(),
-        min_quantile = ggheatmap_min_quantile_reactive(),
-        max_quantile = ggheatmap_max_quantile_reactive()
-      )
-    } else {
-      gghml <- gghmList(
-        matl = selected_matrices_reactive(),
-        wins = ggwins_reactive(),
-        col_fun = ggheatmap_col_fun_reactive(),
-        axis_labels = ggaxis_labels_reactive(),
-        show_row_names = ggshow_row_names_reactive(),
-        min_quantile = ggheatmap_min_quantile_reactive(),
-        max_quantile = ggheatmap_max_quantile_reactive()
-      )
-    }
-    
+    gghml <- plotggplotHeatmap(
+      matl = selected_matrices_reactive(),
+      wins = wins_reactive(),
+      color_palette = input$colorpalette,
+      average_profile = input$averageprofile,
+      zMin = zscaling_reactive(),
+      zMax = zscaling_reactive(),
+      log2 = input$log2,
+      dottedlines = input$dottedlines,
+      split = split_reactive()
+    )
     return(gghml)
   })
-  
-  output$ggplotheatmapdownloadpng <- downloadHandler(
-    filename = function() { paste("ggplotheatmap_", Sys.Date(), ".png", sep="") },
-    content = function(file) {
-      png(file, width = 1350, height = 900, res = 150)
-      gghml <- gghmList(
-        matl = selected_matrices_reactive(),
-        wins = ggwins_reactive(),
-        col_fun = ggheatmap_col_fun_reactive(),
-        axis_labels = ggaxis_labels_reactive(),
-        show_row_names = ggshow_row_names_reactive(),
-        min_quantile = ggheatmap_min_quantile_reactive(),
-        max_quantile = ggheatmap_max_quantile_reactive()
-      )
-      req(length(gghml()) > 0)
-      combined_plot <- wrap_plots(gghml(), nrow = 1) 
-      
-      print(combined_plot)
-      dev.off()
-    }
-  )
-  
-  output$ggplotheatmapdownloadpdf <- downloadHandler(
-    filename = function() { paste("ggplotheatmap_", Sys.Date(), ".pdf", sep="") },
-    content = function(file) {
-      pdf(file, width = 13.5, height = 9)
-      gghml <- gghmList(
-        matl = selected_matrices_reactive(),
-        wins = ggwins_reactive(),
-        col_fun = ggheatmap_col_fun_reactive(),
-        axis_labels = ggaxis_labels_reactive(),
-        show_row_names = ggshow_row_names_reactive(),
-        min_quantile = ggheatmap_min_quantile_reactive(),
-        max_quantile = ggheatmap_max_quantile_reactive()
-      )
-      req(length(gghml()) > 0)
-      combined_plot <- wrap_plots(gghml(), nrow = 1) 
-      
-      print(combined_plot)
-      dev.off()
-    }
-  )
   
   
   

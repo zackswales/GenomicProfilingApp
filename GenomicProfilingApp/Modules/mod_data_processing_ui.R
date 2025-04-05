@@ -272,18 +272,9 @@ mod_data_processing_ui <- function(id) {
               label = "Smoothen data",
               value = FALSE
             ),
-            checkboxInput(
-              inputId = "log",
-              label = "Log data",
-              value = FALSE
-            ),
             actionButton(
               inputId = "matrixgeneration",
               label = "Generate Matrices"
-            ),
-            actionButton(
-              inputId = "testfiles",
-              label = "Test files"
             ),
             verbatimTextOutput("matrixResult"),
             actionButton(

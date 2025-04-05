@@ -54,6 +54,11 @@ mod_visualisations_ui <- function(id){
               label = "k-Means clustering",
               value = FALSE
             ),
+            checkboxInput(
+              inputId = "logenriched",
+              label = "Apply log2 transformation",
+              value = FALSE
+            ),
             conditionalPanel(
               condition = "input.kmeansclustering == 1",
               numericInput(
@@ -85,51 +90,48 @@ mod_visualisations_ui <- function(id){
           )
         )
       ),
-      
-      # ggplot Heatmap Panel
       nav_panel(
-        title = "ggplot Heatmap",
+        title = "ggplot2 Heatmap",
         layout_sidebar(
           sidebar = sidebar(
             open = TRUE,
             title = "Heatmap Customisation",
-            radioButtons(
-              inputId = "ggheatmap_col_fun",
-              label = "Select colour scheme:",
-              choices = list("White to red" = 1, "Blue to red" = 2, "Red scale" = 3),
-              selected = 1
-            ),
-            sliderInput(
-              inputId = "ggheatmapquantiles",
-              label = "Set quantile range:",
-              min = 0,
-              max = 0.99,
-              value = c(0,0.99)
+            selectInput(
+              inputId = "colorpalette",
+              label = "Select colour palette",
+              choices = c("viridis" = "viridis", "Red to blue" = "RdBu", "magma" = "magma", "Red to white" = "red_white"),
+              selected = "viridis"
             ),
             checkboxInput(
-              inputId = "ggshowrownames",
-              label = "Show row names",
+              inputId = "averageprofile",
+              label = "Add average profile plot",
+              value = FALSE
+            ),
+            checkboxInput(
+              inputId = "autoz",
+              label = "Auto z-axis scaling",
+              value = FALSE
+            ),
+            checkboxInput(
+              inputId = "log2",
+              label = "Apply log2 to data",
+              value = FALSE
+            ),
+            checkboxInput(
+              inputId = "dottedlines",
+              label = "Add break lines to heatmap",
               value = FALSE
             ),
             actionButton(
-              inputId = "ggplotheatmapplotbutton",
+              inputId = "plotggheatmap",
               label = "Plot Output"
-            ),
-            helpText("Output plotting will take a few seconds"),
-            helpText("Use download buttons after clicking Plot Output"),
-            downloadButton(
-              outputId = "ggplotheatmapdownloadpng",
-              label = "Download as .png"
-            ),
-            downloadButton(
-              outputId = "ggplotheatmapdownloadpdf",
-              label = "Download as .pdf"
             )
           ),
           card(
             full_screen = TRUE,
-            card_header("Heatmap Visualisation"),
-            card_body(plotOutput("ggplotHeatmapPlot"))
+            card_hearder = "Heatmap visualisation",
+            card_body(plotOutput("ggplotheatmap"),
+                      height = 1000)
           )
         )
       ),

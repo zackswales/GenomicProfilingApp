@@ -1,5 +1,7 @@
 # Source to plotting functions script
 source("~/GenomicProfilingApp/R/plottingFunctionsZack.R")
+# Source to the ggplotheatmap function
+source("~/GenomicProfilingApp/R/ggplotheatmap.R")
 
 ## Sourcing the modules for the ui.R script
 source("~/GenomicProfilingApp/GenomicProfilingApp/Modules/mod_home.R")
