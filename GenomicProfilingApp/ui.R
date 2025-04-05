@@ -1,5 +1,5 @@
 ui <- page_navbar(
-  title = "Interactive Genomic Profiling",
+  title = "seqEasy",
   bg = "#E46303",
   inverse = TRUE,
   useShinyjs(),
