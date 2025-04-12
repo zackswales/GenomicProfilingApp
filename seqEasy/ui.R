@@ -1,6 +1,6 @@
 ui <- page_navbar(
   title = "seqEasy",
-  bg = "#E46303",
+  bg = "#BCDDDF",
   inverse = TRUE,
   useShinyjs(),
   

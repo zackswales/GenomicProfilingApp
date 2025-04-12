@@ -135,6 +135,16 @@ mod_visualisations_ui <- function(id){
             actionButton(
               inputId = "plotggheatmap",
               label = "Plot Output"
+            ),
+            helpText("Output plotting will take a few seconds"),
+            helpText("Use download buttons after clicking Plot Output"),
+            downloadButton(
+              outputId = "ggheatmapdownloadpng",
+              label = "Download as .png"
+            ),
+            downloadButton(
+              outputId = "ggheatmapdownloadpdf",
+              label = "Download as .pdf"
             )
           ),
           card(
@@ -181,6 +191,10 @@ mod_visualisations_ui <- function(id){
               min = 0,
               max = 1,
               value = 1
+            ),
+            actionButton(
+              inputId = "YES",
+              label = "what"
             ),
             conditionalPanel(
               condition = "input.split == 1",

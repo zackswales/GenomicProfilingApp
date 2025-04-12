@@ -430,6 +430,10 @@ server <- function(input, output, session) {
     wins_vector(current_wins)
   })
   
+  observeEvent(input$testwins,{
+    print(wins_vector())
+  })
+  
   observeEvent(input$clearregions, {
     saved_regions(list())
     region_objects_list(list())
@@ -910,44 +914,22 @@ server <- function(input, output, session) {
   ## Download options for the enrichedHeatmap heatmaps
   
   output$heatmapdownloadpng <- downloadHandler(
-    filename = function() { paste("heatmap_", Sys.Date(), ".png", sep="") },
+    filename = function() { paste("enrichedHeatmap_", Sys.Date(), ".png", sep="") },
     content = function(file) {
       png(file, width = 1350, height = 900, res = 150)
-      hml <- hmList(
-        matl = matl(), 
-        wins = wins_reactive(), 
-        col_fun = heatmap_col_fun_reactive(), 
-        axis_labels = axis_labels_reactive(), 
-        show_row_names = show_row_names_reactive(), 
-        min_quantile = heatmap_min_quantile_reactive(), 
-        max_quantile = heatmap_max_quantile_reactive(), 
-        ylim = c(0, max_ylim_reactive())
-      )
-      
-      req(length(hml) > 0)
-      combined_hm <- Reduce(`+`, hml)
+      req(length(hml()) > 0)
+      combined_hm <- Reduce(`+`, hml())
       draw(combined_hm, merge_legend = TRUE)
       dev.off()  
     }
   )
   
   output$heatmapdownloadpdf <- downloadHandler(
-    filename = function() { paste("heatmap_", Sys.Date(), ".pdf", sep="") },
+    filename = function() { paste("enrichedHeatmap_", Sys.Date(), ".pdf", sep="") },
     content = function(file) {
       pdf(file, width = 13.5, height = 9)
-      hml <- hmList(
-        matl = matl(), 
-        wins = wins_reactive(), 
-        col_fun = heatmap_col_fun_reactive(), 
-        axis_labels = axis_labels_reactive(), 
-        show_row_names = show_row_names_reactive(), 
-        min_quantile = heatmap_min_quantile_reactive(), 
-        max_quantile = heatmap_max_quantile_reactive(), 
-        ylim = c(0, max_ylim_reactive())
-      )
-      
-      req(length(hml) > 0)
-      combined_hm <- Reduce(`+`, hml)
+      req(length(hml()) > 0)
+      combined_hm <- Reduce(`+`, hml())
       draw(combined_hm, merge_legend = TRUE)
       dev.off()  
     }
@@ -1080,6 +1062,25 @@ server <- function(input, output, session) {
     ggplot_heatmap_object()
   }, height = 1000)
   
+  
+  output$ggheatmapdownloadpng <- downloadHandler(
+    filename = function() { paste("ggplot2heatmap_", Sys.Date(), ".png", sep="") },
+    content = function(file) {
+      png(file, width = 1350, height = 900, res = 150)
+      print(ggplot_heatmap_object())
+      dev.off()
+    }
+  )
+  
+  output$ggheatmapdownloadpdf <- downloadHandler(
+    filename = function() { paste("ggplot2heatmap_", Sys.Date(), ".pdf", sep="") },
+    content = function(file) {
+      pdf(file, width = 13.5, height = 9)
+      print(ggplot_heatmap_object())
+      dev.off()
+    }
+  )
+  
   observe({
     print("Selected Matrices:")
     print(selected_matrices_reactive())
@@ -1101,7 +1102,7 @@ server <- function(input, output, session) {
   
   ## Average profile plot
   
-  ## Reactive customisation options for the average profile plots
+  ## Splitting object for average profile plot
   
   split_average_reactive <- reactive({
     req(input$split)
@@ -1152,6 +1153,8 @@ server <- function(input, output, session) {
            "3" = c("Sample", "Family"))
   })
   
+  # Customisation options for the average profile plot
+  
   title_reactive <- reactive({
     input$plottitle
   })
@@ -1169,55 +1172,72 @@ server <- function(input, output, session) {
     input$alpha
   })
   
-  pal = c(RColorBrewer::brewer.pal(n = 9,name = "Set1"))
-  pal2 = c(wes_palette("Darjeeling2")[2],wes_palette("Zissou1")[1],wes_palette("Darjeeling1")[4],wes_palette("Darjeeling1")[3])
-  colmap = c(pal[c(1:5,7:9)])
-  
-  breaks_reactive <- reactive({
+  avg_breaks_reactive <- reactive({
     if(input$getFeature == 1){
       x_range <- ncol(matl()[[1]])
-      break_positions <- c(0,0.25,0.75,1) * x_range
+      break_positions <- c(0, 0.25, 0.75, 1) * x_range
+      return(break_positions)
     }
     if(input$getFeature == 2){
       x_range <- ncol(matl()[[1]])
       break_positions <- c(0, 0.5, 1) * x_range
+      return(break_positions)
     }
     if(input$getFeature == 3){
       x_range <- ncol(matl()[[1]])
       break_positions <- c(0, 0.5, 1) * x_range
+      return(break_positions)
     }
-    if(input$getFeature == 4){
+    if (input$getFeature == 4) {
+      wins <- wins_vector()
       x_range <- ncol(matl()[[1]])
-      sum = input$up + input$exon1 + input$intron1 + input$body + input$down
-      break_positions <- c(0, (input$up/sum), ((input$exon1/sum) + (input$up/sum)), ((input$intron1/sum) + (input$exon1/sum) + (input$up/sum)), ((input$body/sum) + (input$intron1/sum) + (input$exon1/sum) + (input$up/sum)), 1) * x_range
+      cumulative_sums <- cumsum(wins)
+      break_proportions <- c(0, cumulative_sums / sum(wins))
+      break_positions <- break_proportions * x_range
+      return(break_positions)
     }
-    
-    return(break_positions)
   })
   
-  labels_reactive <- reactive({
-    req(flank_reactive(), input$getFeature)
-    
-    if(input$getFeature == 1){
-      x <- flank_reactive()
-      c(paste0("-", x, "b"), "TSS", "TES", paste0("+", x, "b"))
-    }
-    
-    if(input$getFeature == 2){
-      x <- flank_reactive()
-      c(paste0("-", x, "b"), "TSS", paste0("+", x, "b"))
-    }
-    
-    if(input$getFeature == 3){
-      x <- flank_reactive()
-      c(paste0("-", x, "b"), "TES", paste0("+", x, "b"))
-    }
-    
-    if(input$getFeature == 4){
-      x <- flank_reactive()
-      c(paste0("-", x, "b"), "Exon 1", "Intron 1", "Body", "TES", paste0("+", x, "b"))
+  
+  avg_breaklabels_reactive <- reactive({
+    if (input$getFeature == 1) {
+      flank_size <- input$flank
+      avgbreaklabels <- c(paste0("-", flank_size, "b"), "TSS", "TES", paste0("+", flank_size, "b"))
+      return(avgbreaklabels)
+    } else if (input$getFeature == 2){
+      flank_size <- input$flank
+      avgbreaklabels <- c(paste0("-", flank_size, "b"), "TSS", paste0("+", flank_size, "b"))
+      return(avgbreaklabels)
+    } else if (input$getFeature == 3) {
+      flank_size <- input$flank
+      avgbreaklabels <- c(paste0("-", flank_size, "b"), "TES", paste0("+", flank_size, "b"))
+      return(avgbreaklabels)
+    } else if (input$getFeature == 4) {
+      wins <- ggwins_reactive()
+      flank_size <- input$flank
+      if (length(wins) > 0) {
+        cumulative_sums <- cumsum(wins)
+        total_sum <- sum(wins)
+        break_proportions <- c(0, cumulative_sums / total_sum)
+        x_range <- ncol(matl()[[1]])
+        break_positions <- break_proportions * x_range
+        labels <- c(names(wins), "")
+        return(labels)
+      } else {
+        return(NULL)
+      }
+    } else {
+      return(NULL)
     }
   })
+  
+  observeEvent(input$YES, {
+    print("breaks")
+    print(avg_breaks_reactive())
+    print("labels:")
+    print(avg_breaklabels_reactive())
+  })
+  
   
   unit_reactive <- reactive({
     input$unit
@@ -1227,12 +1247,18 @@ server <- function(input, output, session) {
     input$feature
   })
   
+  pal = c(RColorBrewer::brewer.pal(n = 9,name = "Set1"))
+  pal2 = c(wes_palette("Darjeeling2")[2],wes_palette("Zissou1")[1],wes_palette("Darjeeling1")[4],wes_palette("Darjeeling1")[3])
+  colmap = c(pal[c(1:5,7:9)])
+  
   
   
   # Creating the average profile plot
   
-  observe ({
-    if (input$averageprofileplotbutton > 0) {
+  observeEvent(input$averageprofileplotbutton, {
+    if(length(input$selectedmatrices) == 0){
+      showNotification("Matrices need to be selected before plotting", type = "warning")
+    } else {
       showNotification("Plotting output...", type = "message")
     }
   })
@@ -1249,7 +1275,7 @@ server <- function(input, output, session) {
       average_profile <- mplot(matl = selected_matrices_reactive(), split = split_reactive(),colmap = split_average_cols_reactive()[[input$colourby]], feature = feature_reactive(), unit = unit_reactive(), title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive(), colour_by = input$colourby,facet = facet_reactive(), facet_scale = "free",facet_independent = T,facet_type="grid")
       return(average_profile)
     } else {
-      average_profile <- mplot(matl = selected_matrices_reactive(), colmap = colmap, feature = feature_reactive(), unit = unit_reactive(), title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
+      average_profile <- mplot(matl = selected_matrices_reactive(), colmap = colmap, feature = feature_reactive(), unit = unit_reactive(), title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = avg_breaks_reactive(), labels = avg_breaklabels_reactive())
       return(average_profile)
     }
   })
@@ -1260,9 +1286,7 @@ server <- function(input, output, session) {
     filename = function() { paste("averageprofileplot_", Sys.Date(), ".png", sep="") },
     content = function(file) {
       png(file, width = 1350, height = 900, res = 150)  
-      average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
-      
-      print(average_profile)
+      print(average_profile())
       dev.off() 
     }
   )
@@ -1271,9 +1295,7 @@ server <- function(input, output, session) {
     filename = function() { paste("averageprofileplot_", Sys.Date(), ".pdf", sep="") },
     content = function(file) {
       pdf(file, width = 13.5, height = 9)  
-      average_profile <- mplot(matl = matl(), colmap = colmap, title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = breaks_reactive(), labels = labels_reactive())
-      
-      print(average_profile)
+      print(average_profile())
       dev.off()  
     }
   )

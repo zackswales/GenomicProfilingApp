@@ -280,6 +280,10 @@ mod_data_processing_ui <- function(id) {
               inputId = "testfiles",
               label = "test files"
             ),
+            actionButton(
+              inputId = "testwins",
+              label = "Test wins"
+            ),
             verbatimTextOutput("matrixResult"),
             actionButton(
               inputId = "savematrices",

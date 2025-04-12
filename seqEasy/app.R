@@ -17,16 +17,17 @@ base_dir <- '~/GenomicProfilingApp/seqEasy/users'
 if (!dir.exists(base_dir)) {
   dir.create(base_dir, recursive = TRUE)
 }
-    
+
 # Initialize login system
 tab_login <- list()
 
+# UI for the login page
 tab_login$ui <- tabPanel(
   title = 'Login',
-  shinyjs::hidden(tags$div(
-    id = 'tab_login.welcome_div',
-    class = 'login-text', 
-    textOutput('tab_login.welcome_text', container = tags$h2))
+  # Add logo to the login page
+  tags$div(style = "text-align: center;", 
+           tags$img(src = 'logo.png', height = "150px", alt = "App Logo"),
+           tags$h3("Welcome to seqEasy")  # Changed from "Login to continue" to "Welcome to seqEasy"
   )
 )
 
@@ -53,8 +54,6 @@ tab_login$server <- function(input, output, session) {
       if (password == user.access[username, 'Password']) {
         # Successfully log in
         removeModal() # Remove login dialog
-        output$tab_login.welcome_text <- renderText(glue::glue('Welcome, {username}'))
-        shinyjs::show('tab_login.welcome_div') # Show welcome message
         
         # Define user-specific directory
         user_dir <- file.path(base_dir, username)
