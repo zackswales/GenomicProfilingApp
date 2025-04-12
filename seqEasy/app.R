@@ -4,16 +4,16 @@ source("~/GenomicProfilingApp/R/plottingFunctionsZack.R")
 source("~/GenomicProfilingApp/R/ggplotheatmap.R")
 
 ## Sourcing the modules for the ui.R script
-source("~/GenomicProfilingApp/GenomicProfilingApp/Modules/mod_home.R")
-source("~/GenomicProfilingApp/GenomicProfilingApp/Modules/mod_data_processing_ui.R")
-source("~/GenomicProfilingApp/GenomicProfilingApp/Modules/mod_visualisations.R")
+source("~/GenomicProfilingApp/seqEasy/Modules/mod_home.R")
+source("~/GenomicProfilingApp/seqEasy/Modules/mod_data_processing_ui.R")
+source("~/GenomicProfilingApp/seqEasy/Modules/mod_visualisations.R")
 
 ### Login code
 
 user.access <- read.csv('~/Research Project/register.csv')
 
 # Define the base directory where user folders will be stored
-base_dir <- '~/GenomicProfilingApp/GenomicProfilingApp/users'
+base_dir <- '~/GenomicProfilingApp/seqEasy/users'
 if (!dir.exists(base_dir)) {
   dir.create(base_dir, recursive = TRUE)
 }
@@ -81,10 +81,10 @@ tab_login$server <- function(input, output, session) {
 }
 
 # Source to the ui.R script
-source("~/GenomicProfilingApp/GenomicProfilingApp/ui.R")
+source("~/GenomicProfilingApp/seqEasy/ui.R")
 
 # Source to the server.R script
-source("~/GenomicProfilingApp/GenomicProfilingApp/server.R")
+source("~/GenomicProfilingApp/seqEasy/server.R")
 
 # Run the application
 shinyApp(ui = ui, server = server)

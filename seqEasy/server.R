@@ -90,22 +90,50 @@ server <- function(input, output, session) {
     req(session$userData$user_dir)
     sequence_dir <- get_sequence_dir()
     
-      if(dir.exists(sequence_dir)){
-        rds_files <- dir_ls(sequence_dir, glob = "*.rds")
-        
-        if(length(rds_files) > 0){
-          file_delete(rds_files)
-          showNotification("Sequence data files cleared successfully", type = "message")
-        } else {
-          showNotification("No sequence data files found in directory", type = "warning")
-        }
+    if(dir.exists(sequence_dir)){
+      rds_files <- dir_ls(sequence_dir, glob = "*.rds")
+      
+      if(length(rds_files) > 0){
+        file_delete(rds_files)
+        showNotification("Sequence data files cleared successfully", type = "message")
       } else {
-        showNotification("Directory does not exist", type = "error")
+        showNotification("No sequence data files found in directory", type = "warning")
       }
+    } else {
+      showNotification("Directory does not exist", type = "error")
+    }
   })
   
   
-  
+  observeEvent(input$testfiles, {
+    sequence_dir <- get_sequence_dir()
+    if(!is.null(sequence_dir) && dir.exists(sequence_dir)) {
+      rds_files <- list.files(sequence_dir, pattern = "\\.rds$", full.names = TRUE)
+      if (length(rds_files) > 0) {
+        print("Attempting to read the following files:")
+        print(rds_files)
+        read_successful <- TRUE
+        for (file in rds_files) {
+          tryCatch({
+            readRDS(file)
+            print(paste("Successfully read:", basename(file)))
+          }, error = function(e) {
+            print(paste("Error reading:", basename(file), "-", e$message))
+            read_successful <- FALSE
+          })
+        }
+        if (read_successful) {
+          print("All RDS files read successfully.")
+        } else {
+          print("Some RDS files encountered errors during reading.")
+        }
+      } else {
+        print("No RDS files found in the sequence data directory.")
+      }
+    } else {
+      print("Sequence data directory does not exist or user directory is not set.")
+    }
+  })
   
   
   ## Database annotation fetching
@@ -393,12 +421,12 @@ server <- function(input, output, session) {
     )
     
     
-    current_region_objects <- region_objects_list() 
-    current_region_objects[[region_name]] <- region_object 
+    current_region_objects <- region_objects_list()
+    current_region_objects[[region_name]] <- region_object
     region_objects_list(current_region_objects)
     
     current_wins <- wins_vector()
-    current_wins[region_name] <- window_size
+    current_wins[region_name] <- as.numeric(window_size) # Ensure window_size is numeric
     wins_vector(current_wins)
   })
   
@@ -510,11 +538,14 @@ server <- function(input, output, session) {
           bwf <- bwr
           names(bwf) <- sub("\\.r\\.bw$", "", bigwig_file_names[grepl("\\.r\\.bw$", bigwig_file_names)])
         }
+        print("bwf:")
+        print(bwf)
       } else {
         bwf <- bigwig_files[grepl("\\.bw$", bigwig_file_names)]
         if (length(bwf) > 0) {
           names(bwf) <- sub("\\.bw$", "", bigwig_file_names[grepl("\\.bw$", bigwig_file_names)])
         }
+        print(bwf)
       }
       
       incProgress(0.5, detail = "Generating matrices")
@@ -523,22 +554,22 @@ server <- function(input, output, session) {
       if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
         if (input$getFeature == 1) {
           grl <- list("features" = features)
-          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
+          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(bwf), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
         } else if (input$getFeature == 2 || input$getFeature == 3) {
           grl <- list("features" = features)
-          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
+          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(bwf), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
         } else if (input$getFeature == 4) {
-          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), wins = wins_vector(), strand = strand_reactive(), smooth = smooth_reactive())
+          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(bwf), wins = wins_vector(), strand = strand_reactive(), smooth = smooth_reactive())
         }
       } else {
         if (input$getFeature == 1) {
           grl <- list("features" = features)
-          matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
+          matl_result <- matList(bwf = bwf, grl = grl, names = names(bwf), extend = input$flank, w = input$windowsize, strand = strand_reactive(), smooth = smooth_reactive())
         } else if (input$getFeature == 2 || input$getFeature == 3) {
           grl <- list("features" = features)
-          matl_result <- matList(bwf = bwf, grl = grl, names = names(fbw), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
+          matl_result <- matList(bwf = bwf, grl = grl, names = names(bwf), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
         } else if (input$getFeature == 4) {
-          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(fbw), wins = wins_vector(), strand = strand_reactive(), smooth = smooth_reactive())
+          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(bwf), wins = wins_vector(), strand = strand_reactive(), smooth = smooth_reactive())
         } 
       }
       
@@ -924,6 +955,54 @@ server <- function(input, output, session) {
   
   ## ggplot heatmap
   
+  ggwins_reactive <- reactive({
+    if (input$getFeature == 1) {
+      flank_size <- input$flank
+      ggwins <- c("Upstream" = flank_size, "Gene" = 2 * flank_size, "Downstream" = flank_size)
+      return(ggwins)
+    } else if (input$getFeature == 2){
+      flank_size <- input$flank
+      ggwins <- c("Upstream" = flank_size, "TSS" = 1, "Downstream" = flank_size)
+      return(ggwins)
+    } else if (input$getFeature == 3){
+      flank_size <- input$flank
+      ggwins <- c("Upstream" = flank_size, "TES" = 1, "Downstream" = flank_size)
+      return(ggwins)
+    } else if (input$getFeature == 4) {
+      return(wins_vector())
+    } else {
+      return(NULL)
+    }
+  })
+  
+  ggbreaklabels_reactive <- reactive({
+    if (input$getFeature == 1) {
+      flank_size <- input$flank
+      ggbreaklabels <- c(paste0("-", flank_size, "b"), "TSS", "TES", paste0("+", flank_size, "b"))
+      return(ggbreaklabels)
+    } else if (input$getFeature == 2){
+      flank_size <- input$flank
+      ggbreaklabels <- c(paste0("-", flank_size, "b"), "TSS", "", paste0("+", flank_size, "b"))
+      return(ggbreaklabels)
+    } else if (input$getFeature == 3) {
+      flank_size <- input$flank
+      ggbreaklabels <- c(paste0("-", flank_size, "b"), "TES", "", paste0("+", flank_size, "b"))
+      return(ggbreaklabels)
+    } else if (input$getFeature == 4) {
+      wins <- ggwins_reactive()
+      if (length(wins) > 0) {
+        labels <- names(wins)
+        return(c(labels, ""))
+      } else {
+        return(NULL)
+      }
+    } else {
+      return(NULL)
+    }
+  })
+  
+  
+  
   zscaling_reactive <- reactive({
     if(input$autoz == TRUE){
       z <- "auto"
@@ -941,27 +1020,82 @@ server <- function(input, output, session) {
     }
   })
   
+  ggsplit_reactive <- reactive({
+    if (!is.null(input$tsvsplitting)) {
+      tryCatch({
+        annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+        if (ncol(annotation) > 0) {
+          colnames(annotation)[1] <- "gene_name" # Ensure the first column is named 'gene_name'
+          
+          split_col <- input$splitby
+          if (!split_col %in% colnames(annotation)) {
+            showNotification(paste("Selected column '", split_col, "' not found in annotation file."), type = "error")
+            return(NULL)
+          }
+          
+          Anno <- data.frame(name = rownames(matl()[[1]])) %>%
+            left_join(data.frame(name = annotation$gene_name, split_val = factor(annotation[[split_col]])), by = "name") %>%
+            column_to_rownames("name")
+          return(Anno)
+        } else {
+          showNotification("Annotation file is empty or has no columns.", type = "warning")
+          return(NULL)
+        }
+      }, error = function(e) {
+        showNotification(paste("Error reading or processing annotation file:", e$message), type = "error")
+        return(NULL)
+      })
+    } else {
+      return(NULL)
+    }
+  })
+  
+  
+  ggplot_heatmap_object <- eventReactive(input$plotggheatmap, {
+    print("plotggheatmap button clicked")
+    tryCatch({
+      plot <- plotggplotHeatmap(
+        matl = selected_matrices_reactive(),
+        wins = ggwins_reactive(),
+        break_labels = ggbreaklabels_reactive(),
+        color_palette = input$colorpalette,
+        average_profile = input$averageprofile,
+        zMin = zscaling_reactive(),
+        zMax = zscaling_reactive(),
+        log2 = input$log2,
+        dottedlines = input$dottedlines,
+        split = ggsplit_reactive()
+      )
+      print("ggplot object:")
+      print(plot)
+      plot
+    }, error = function(e) {
+      print("Error in plotggplotHeatmap:")
+      print(e)
+      return(NULL) # Return NULL in case of an error
+    })
+  })
+  
   output$ggplotheatmap <- renderPlot({
-    req(gghml())
-    req(length(gghml()) > 0)
-    gghml()
+    ggplot_heatmap_object()
   }, height = 1000)
   
-  gghml <- eventReactive(input$plotggheatmap, {
-    req(selected_matrices_reactive())
-    gghml <- plotggplotHeatmap(
-      matl = selected_matrices_reactive(),
-      wins = wins_reactive(),
-      color_palette = input$colorpalette,
-      average_profile = input$averageprofile,
-      zMin = zscaling_reactive(),
-      zMax = zscaling_reactive(),
-      log2 = input$log2,
-      dottedlines = input$dottedlines,
-      split = split_reactive()
-    )
-    return(gghml)
+  observe({
+    print("Selected Matrices:")
+    print(selected_matrices_reactive())
   })
+  
+  observe({
+    print("ggwins_reactive():")
+    print(ggwins_reactive())
+  })
+  
+  observe({
+    print("ggbreaklabels_reactive():")
+    print(ggbreaklabels_reactive())
+  })
+  
+  
   
   
   

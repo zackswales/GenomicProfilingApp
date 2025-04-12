@@ -90,6 +90,8 @@ mod_visualisations_ui <- function(id){
           )
         )
       ),
+      
+      # ggplot heatmap
       nav_panel(
         title = "ggplot2 Heatmap",
         layout_sidebar(
@@ -99,8 +101,16 @@ mod_visualisations_ui <- function(id){
             selectInput(
               inputId = "colorpalette",
               label = "Select colour palette",
-              choices = c("viridis" = "viridis", "Red to blue" = "RdBu", "magma" = "magma", "Red to white" = "red_white"),
-              selected = "viridis"
+              choices = c("Viridis" = "viridis", 
+                          "Red-Blue" = "RdBu", 
+                          "Magma" = "magma", 
+                          "Red-White" = "red_white",
+                          "Inferno" = "inferno",
+                          "Cividis" = "cividis",
+                          "Red-Yellow-Blue" = "RdYlBu",
+                          "Purple-Orange" = "PuOr",
+                          "Brown-Blue/Green" = "BrBG"),
+              selected = "red_white"
             ),
             checkboxInput(
               inputId = "averageprofile",
@@ -129,7 +139,7 @@ mod_visualisations_ui <- function(id){
           ),
           card(
             full_screen = TRUE,
-            card_hearder = "Heatmap visualisation",
+            card_header("Heatmap Visualisation"),
             card_body(plotOutput("ggplotheatmap"),
                       height = 1000)
           )

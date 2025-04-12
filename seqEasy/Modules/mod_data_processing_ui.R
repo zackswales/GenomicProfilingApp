@@ -276,6 +276,10 @@ mod_data_processing_ui <- function(id) {
               inputId = "matrixgeneration",
               label = "Generate Matrices"
             ),
+            actionButton(
+              inputId = "testfiles",
+              label = "test files"
+            ),
             verbatimTextOutput("matrixResult"),
             actionButton(
               inputId = "savematrices",
@@ -313,4 +317,3 @@ mod_data_processing_ui <- function(id) {
     )
   )
 }
-

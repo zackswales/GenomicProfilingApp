@@ -7,10 +7,16 @@ library(RColorBrewer)
 
 plotggplotHeatmap <- function(matl, color_palette = "red_white", zMin = NULL, zMax = NULL,
                               xlab = NULL, ylab = NULL, fill_label = "Signal", title = NULL,
-                              wins = NULL, break_labels = c("-20b", "TSS", "TES", "+20b"), average_profile = FALSE, k_clusters = NULL, log2 = FALSE, dottedlines = FALSE,
+                              wins, break_labels, average_profile = FALSE, k_clusters = NULL, log2 = FALSE, dottedlines = FALSE,
                               split = NULL) {
   if (!is.list(matl) || !all(sapply(matl, is.matrix))) {
     stop("Input 'matl' must be a list of matrices.")
+  }
+  if (!is.numeric(wins) || is.null(names(wins))) {
+    stop("Argument 'wins' must be a named numeric vector.")
+  }
+  if (!is.character(break_labels) || !is.vector(break_labels)) {
+    stop("Argument 'break_labels' must be a character vector.")
   }
   
   # Apply log2 transform if log2 is TRUE
@@ -47,36 +53,12 @@ plotggplotHeatmap <- function(matl, color_palette = "red_white", zMin = NULL, zM
     }
     
     bin_names <- levels(temp_df_long$Bin)
-    x_breaks <- NULL
-    x_labels <- NULL
+    breaks <- cumsum(wins)
+    x_breaks <- c(1, breaks)
+    x_labels <- break_labels
     
-    if (is.null(wins)) {
-      u1_index <- which(grepl("^u1$", bin_names))
-      t1_index <- which(grepl("^t1$", bin_names))
-      d1_index <- which(grepl("^d1$", bin_names))
-      last_index <- length(bin_names)
-      x_breaks <- c(u1_index, t1_index, d1_index, last_index)
-      x_labels <- c("-20b", "TSS", "TES", "+20b")
-    } else {
-      if (!is.numeric(wins) || is.null(names(wins))) {
-        stop("wins must be a named numeric vector.")
-      }
-      
-      breaks <- cumsum(wins)
-      breaks <- c(1, breaks)
-      
-      x_breaks <- breaks
-      
-      if (is.null(break_labels)) {
-        labels <- names(wins)
-        labels <- c(labels, "+20b")
-        x_labels <- labels
-      } else {
-        if (length(break_labels) != length(x_breaks)) {
-          stop("break_labels must have the same length as the number of breaks.")
-        }
-        x_labels <- break_labels
-      }
+    if (length(x_labels) != length(x_breaks)) {
+      stop("The length of 'break_labels' must be equal to the number of breaks defined by 'wins' plus one (for the start).")
     }
     
     base_heatmap <- ggplot(temp_df_long, aes(x = Bin, y = gene_id, fill = Value)) +
