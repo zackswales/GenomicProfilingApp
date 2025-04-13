@@ -5,7 +5,7 @@ mod_visualisations_ui <- function(id){
     navset_tab(
       # Matrix selection tab
       nav_panel(
-        title = "Matrix selection",
+        title = "Matrix selection + Splitting Upload",
         card(
           card_header("Matrix selection"),
           card_body(
@@ -217,10 +217,6 @@ mod_visualisations_ui <- function(id){
               min = 0,
               max = 1,
               value = 1
-            ),
-            actionButton(
-              inputId = "YES",
-              label = "what"
             ),
             conditionalPanel(
               condition = "input.split == 1",

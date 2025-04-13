@@ -105,37 +105,6 @@ server <- function(input, output, session) {
   })
   
   
-  observeEvent(input$testfiles, {
-    sequence_dir <- get_sequence_dir()
-    if(!is.null(sequence_dir) && dir.exists(sequence_dir)) {
-      rds_files <- list.files(sequence_dir, pattern = "\\.rds$", full.names = TRUE)
-      if (length(rds_files) > 0) {
-        print("Attempting to read the following files:")
-        print(rds_files)
-        read_successful <- TRUE
-        for (file in rds_files) {
-          tryCatch({
-            readRDS(file)
-            print(paste("Successfully read:", basename(file)))
-          }, error = function(e) {
-            print(paste("Error reading:", basename(file), "-", e$message))
-            read_successful <- FALSE
-          })
-        }
-        if (read_successful) {
-          print("All RDS files read successfully.")
-        } else {
-          print("Some RDS files encountered errors during reading.")
-        }
-      } else {
-        print("No RDS files found in the sequence data directory.")
-      }
-    } else {
-      print("Sequence data directory does not exist or user directory is not set.")
-    }
-  })
-  
-  
   ## Database annotation fetching
   
   output$pickgenome <- renderUI({
@@ -422,10 +391,6 @@ server <- function(input, output, session) {
     current_wins <- wins_vector()
     current_wins[region_name] <- as.numeric(window_size) # Ensure window_size is numeric
     wins_vector(current_wins)
-  })
-  
-  observeEvent(input$testwins,{
-    print(wins_vector())
   })
   
   observeEvent(input$clearregions, {
@@ -1316,14 +1281,6 @@ server <- function(input, output, session) {
       return(NULL)
     }
   })
-  
-  observeEvent(input$YES, {
-    print("breaks")
-    print(avg_breaks_reactive())
-    print("labels:")
-    print(avg_breaklabels_reactive())
-  })
-  
   
   unit_reactive <- reactive({
     input$unit
