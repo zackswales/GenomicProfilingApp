@@ -198,18 +198,8 @@ mod_visualisations_ui <- function(id){
             ),
             conditionalPanel(
               condition = "input.split == 1",
-              selectInput(
-                inputId = "colourby",
-                label = "Colour by:",
-                choices = c("Group" = "Family", "Sample" = "Sample"),
-                selected = "Family"
-              ),
-              selectInput(
-                inputId = "facetby",
-                label = "Facet by:",
-                choices = c("Sample" = 1, "Group" = 2, "Sample + Group" = 3),
-                selected = 2
-              )
+              uiOutput("colourselect"),
+              uiOutput("facetselect")
             ),
             actionButton(
               inputId = "averageprofileplotbutton",
