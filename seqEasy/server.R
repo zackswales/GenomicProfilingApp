@@ -212,7 +212,7 @@ server <- function(input, output, session) {
         inputId = "splitby",
         label = "Select column to split by:",
         choices = column_choices(),
-        selected = column_choices()[1]
+        selected = column_choices()[2]
       )
     }
   })
@@ -719,7 +719,7 @@ server <- function(input, output, session) {
   
   # Creating the conditional splitting object
   split_reactive <- reactive({
-    req(input$split, input$tsvsplitting$datapath, input$splitby, matl()[[1]])
+    req(input$split, input$tsvsplitting$datapath, input$splitby, selected_matrices_reactive()[1])
     
     annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
     colnames(annotation)[1] <- "gene_name"
@@ -729,7 +729,7 @@ server <- function(input, output, session) {
       stop("Selected column not found in annotation file.")
     }
     
-    Anno <- data.frame(name = rownames(matl()[[1]])) %>%
+    Anno <- data.frame(name = rownames(selected_matrices_reactive()[[1]])) %>%
       left_join(data.frame(name = annotation$gene_name, split_val = factor(annotation[[split_col]])), by = "name") %>%
       column_to_rownames("name")
     
@@ -755,6 +755,46 @@ server <- function(input, output, session) {
     } else {
       # Handle cases with 0 or 1 unique values
       list(split_val = c("default" = "gray"))
+    }
+  })
+  
+  filter_choices <- reactiveVal(NULL)
+  
+  observeEvent(c(input$tsvsplitting, input$splitby), {
+    req(input$split, input$tsvsplitting, input$splitby)
+    if(!is.null(input$tsvsplitting) && !is.null(input$splitby)) {
+      annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+      split_col <- input$splitby
+      split_val <- factor(annotation[[split_col]])
+      unique_choices <- unique(split_val)
+      filter_choices(c("All", as.character(unique_choices)))
+    } else {
+      filter_choices(NULL)
+    }
+  })
+  
+  output$filterselect <- renderUI({
+    if(input$split){
+      selectInput(
+        inputId = "filterby",
+        label = "Filter by:",
+        choices = filter_choices(),
+        selected = "All",
+        multiple = FALSE
+      )
+    }
+  })
+  
+  filtered_data <- reactive({
+    req(input$filterby, split_reactive(), selected_matrices_reactive()) # Ensure dependencies are met
+    
+    if (input$filterby == "All") {
+      # If "All" is selected, return the original data
+      return(selected_matrices_reactive())
+    } else {
+      # If a specific filter is selected, filter the data
+      selected_rows <- rownames(split_reactive())[split_reactive()$split_val == input$filterby]
+      return(selected_matrices_reactive()[selected_rows, , drop = FALSE]) # Filter the matrix
     }
   })
   
@@ -856,6 +896,45 @@ server <- function(input, output, session) {
     }
   })
   
+  # Creating reactive objects for the splitting, matrix selection, and split colours for when filtering
+  
+  filtered_matrices_reactive <- reactive({
+    req(input$filterby, selected_matrices_reactive(), split_reactive())
+    
+    if (input$filterby == "All") {
+      return(selected_matrices_reactive())
+    } else {
+      selected_rows <- rownames(split_reactive())[split_reactive()$split_val == input$filterby]
+      filtered_mats <- lapply(selected_matrices_reactive(), function(mat) {
+        mat[selected_rows, , drop = FALSE]
+      })
+      return(filtered_mats)
+    }
+  })
+  
+  filtered_split_reactive <- reactive({
+    req(input$filterby, split_reactive())
+    
+    if (input$filterby == "All") {
+      return(split_reactive())
+    } else {
+      filtered_split <- split_reactive()[split_reactive()$split_val == input$filterby, , drop = FALSE]
+      return(filtered_split)
+    }
+  })
+  
+  filtered_split_cols_reactive <- reactive({
+    req(input$filterby, split_reactive())
+    
+    if (input$filterby == "All") {
+      return(split_cols_reactive())
+    } else {
+      filtered_colors <- split_cols_reactive()
+      filtered_colors$split_val <- filtered_colors$split_val[names(filtered_colors$split_val) == input$filterby]
+      return(filtered_colors)
+    }
+  })
+  
   
   # Creating the heatmaps
   
@@ -879,10 +958,10 @@ server <- function(input, output, session) {
     
     if (isTRUE(input$split)) {  # Ensure reactive context
       hml <- hmList(
-        matl = selected_matrices_reactive(),
+        matl = filtered_matrices_reactive(),
         wins = wins_reactive(),
-        split = split_reactive(), 
-        split_cols = split_cols_reactive(), 
+        split = filtered_split_reactive(), 
+        split_cols = filtered_split_cols_reactive(), 
         col_fun = heatmap_col_fun_reactive(),
         axis_labels = axis_labels_reactive(), 
         show_row_names = show_row_names_reactive(),
@@ -1015,7 +1094,7 @@ server <- function(input, output, session) {
             return(NULL)
           }
           
-          Anno <- data.frame(name = rownames(matl()[[1]])) %>%
+          Anno <- data.frame(name = rownames(selected_matrices_reactive()[[1]])) %>%
             left_join(data.frame(name = annotation$gene_name, split_val = factor(annotation[[split_col]])), by = "name") %>%
             column_to_rownames("name")
           return(Anno)
@@ -1101,156 +1180,6 @@ server <- function(input, output, session) {
   
   
   ## Average profile plot
-  
-  ## Splitting object for average profile plot
-  
-  split_average_reactive <- reactive({
-    req(input$split)
-    region_file <- input$Region1$datapath
-    annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
-    colnames(annotation) <- c("gene_name", "family")
-    Anno <- data.frame(name = c(rownames(matl()[[1]]))) |>
-      left_join(data.frame(name = annotation$gene_name, Family = factor(annotation$family)), by = "name") |>
-      column_to_rownames("name")
-    return(Anno)
-  })
-  
-  split_average_cols_reactive <- reactive({
-    req(split_average_reactive())
-    unique_families <- unique(split_reactive()$Family)
-    if (length(unique_families) == 2) {
-      # Create named vector directly with backticks
-      colors <- c("#DA4167", "#083D77")
-      names(colors) <- unique_families[1:2]
-      if(input$colourby == "Family"){
-        list(Family = colors)
-      } else if(input$colourby == "Sample"){
-        list(Sample = colors)
-      }
-    } else if (length(unique_families) > 2) {
-      # Assign colors from a palette for more than two unique values
-      color_palette <- grDevices::rainbow(length(unique_families))
-      names(color_palette) <- unique_families
-      names(color_palette) <- paste0("`",names(color_palette),"`") # Add backticks to the names.
-      if(input$colourby == "Family"){
-        list(Family = color_palette)
-      } else if(input$colourby == "Sample"){
-        list(Sample = color_palette)
-      }
-    } else {
-      if(input$colourby == "Family"){
-        list(Family = c("default" = "gray"))
-      } else if(input$colourby == "Sample"){
-        list(Sample = c("default" = "gray"))
-      }
-    }
-  })
-  
-  facet_choices <- reactiveVal(NULL)
-  colour_choices <- reactiveVal(NULL)
-  
-  output$facetselect <- renderUI({
-    if(input$split){
-    selectInput(
-      inputId = "facetby",
-      label = "Facet by:",
-      choices = facet_choices(),
-      selected = facet_choices()[1],
-      multiple = TRUE
-    )
-    }
-  })
-  
-  output$colourselect <- renderUI({
-    if(input$split){
-      selectInput(
-        inputId = "colourby",
-        label = "Colour by:",
-        choices = colour_choices(),
-        selected = colour_choices()[1]
-      )
-    }
-  })
-  
-  split_reactive <- reactive({
-    req(input$split, input$tsvsplitting$datapath, input$splitby, matl()[[1]])
-    
-    annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
-    colnames(annotation)[1] <- "gene_name"
-    
-    split_col <- input$splitby
-    if (!split_col %in% colnames(annotation)) {
-      stop("Selected column not found in annotation file.")
-    }
-    
-    Anno <- data.frame(name = rownames(matl()[[1]])) %>%
-      left_join(data.frame(name = annotation$gene_name, split_val = factor(annotation[[split_col]])), by = "name") %>%
-      column_to_rownames("name")
-    
-    return(Anno)
-  })
-  
-  
-  split_cols_reactive <- reactive({
-    req(split_reactive())
-    unique_families <- unique(split_reactive()$split_val)
-    
-    if (length(unique_families) == 2) {
-      # Create named vector directly with backticks
-      colors <- c("#DA4167", "#083D77")
-      names(colors) <- unique_families[1:2]
-      list(split_val = colors)
-    } else if (length(unique_families) > 2) {
-      # Assign colors from a palette for more than two unique values
-      color_palette <- grDevices::rainbow(length(unique_families))
-      names(color_palette) <- unique_families
-      names(color_palette) <- paste0("`", names(color_palette), "`") # Add backticks to the names.
-      list(split_val = color_palette)
-    } else {
-      # Handle cases with 0 or 1 unique values
-      list(split_val = c("default" = "gray"))
-    }
-  })
-  
-  observeEvent(input$tsvsplitting, {
-    if (!is.null(input$tsvsplitting)) {
-      annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
-      
-      # For colour_choices (as it was)
-      colour_choices(c("Sample", colnames(annotation)))
-      
-      # For facet_choices (with the combined option)
-      second_colname <- colnames(annotation)[2]
-      combined_option_display <- paste("Sample +", second_colname)
-      combined_option_value <- paste("Sample", second_colname, sep = ",")
-      
-      choices_list <- c("Sample", colnames(annotation)[1], colnames(annotation)[2])
-      names(choices_list) <- c("Sample", colnames(annotation)[1], colnames(annotation)[2])
-      
-      choices_list[combined_option_value] <- combined_option_display
-      
-      facet_choices(choices_list)
-    } else {
-      colour_choices(NULL)
-      facet_choices(NULL)
-    }
-  })
-  
-  observeEvent(input$facetby, {
-    if (!is.null(input$facetby)) {
-      selected_values <- input$facetby
-      
-      # Handle multiple selections: If it's a combined option, split it
-      if (length(selected_values) > 1) {
-        split_values <- unlist(strsplit(selected_values, ","))
-        print(split_values)
-      } else {
-        print(selected_values)
-      }
-    }
-  })
-  
-  
   # Customisation options for the average profile plot
   
   title_reactive <- reactive({
@@ -1272,23 +1201,23 @@ server <- function(input, output, session) {
   
   avg_breaks_reactive <- reactive({
     if(input$getFeature == 1){
-      x_range <- ncol(matl()[[1]])
+      x_range <- ncol(selected_matrices_reactive()[[1]])
       break_positions <- c(0, 0.25, 0.75, 1) * x_range
       return(break_positions)
     }
     if(input$getFeature == 2){
-      x_range <- ncol(matl()[[1]])
+      x_range <- ncol(selected_matrices_reactive()[[1]])
       break_positions <- c(0, 0.5, 1) * x_range
       return(break_positions)
     }
     if(input$getFeature == 3){
-      x_range <- ncol(matl()[[1]])
+      x_range <- ncol(selected_matrices_reactive()[[1]])
       break_positions <- c(0, 0.5, 1) * x_range
       return(break_positions)
     }
     if (input$getFeature == 4) {
       wins <- wins_vector()
-      x_range <- ncol(matl()[[1]])
+      x_range <- ncol(selected_matrices_reactive()[[1]])
       cumulative_sums <- cumsum(wins)
       break_proportions <- c(0, cumulative_sums / sum(wins))
       break_positions <- break_proportions * x_range
@@ -1317,7 +1246,7 @@ server <- function(input, output, session) {
         cumulative_sums <- cumsum(wins)
         total_sum <- sum(wins)
         break_proportions <- c(0, cumulative_sums / total_sum)
-        x_range <- ncol(matl()[[1]])
+        x_range <- ncol(selected_matrices_reactive()[[1]])
         break_positions <- break_proportions * x_range
         labels <- c(names(wins), "")
         return(labels)
@@ -1368,14 +1297,9 @@ server <- function(input, output, session) {
   
   
   average_profile <- eventReactive(input$averageprofileplotbutton, {
-    req(matl())
-    if(input$split){
-      average_profile <- mplot(matl = selected_matrices_reactive(), split = split_reactive(), colmap = split_average_cols_reactive()[[input$colourby]], feature = feature_reactive(), unit = unit_reactive(), title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = avg_breaks_reactive(), labels = avg_breaklabels_reactive(), colour_by = input$colourby,facet = input$facetby, facet_scale = "free",facet_independent = T,facet_type="grid")
-      return(average_profile)
-    } else {
+    req(selected_matrices_reactive())
       average_profile <- mplot(matl = selected_matrices_reactive(), colmap = colmap, feature = feature_reactive(), unit = unit_reactive(), title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = avg_breaks_reactive(), labels = avg_breaklabels_reactive())
       return(average_profile)
-    }
   })
   
   ## Downloading average profile plots

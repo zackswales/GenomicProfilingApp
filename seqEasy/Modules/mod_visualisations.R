@@ -15,6 +15,24 @@ mod_visualisations_ui <- function(id){
               choices = character(0)
             )
           )
+        ),
+        card(
+          card_header("Plot splitting"),
+          card_body(
+            checkboxInput(
+              inputId = "split",
+              label = "Heatmap splitting",
+              value = FALSE
+            ),
+            conditionalPanel(
+              condition = "input.split == 1",
+              uiOutput("tsvupload")
+            ),
+            conditionalPanel(
+              condition = "input.split == 1",
+              uiOutput("splitselect")
+            ),
+          )
         )
       ),
       
@@ -25,6 +43,10 @@ mod_visualisations_ui <- function(id){
           sidebar = sidebar(
             open = TRUE, 
             title = "Heatmap Customisation",
+            conditionalPanel(
+              condition = "input.split == 1",
+              uiOutput("filterselect")
+            ),
             radioButtons(
               inputId = "heatmap_col_fun",
               label = "Select colour scheme:",

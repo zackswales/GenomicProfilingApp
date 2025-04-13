@@ -14,11 +14,6 @@ mod_data_processing_ui <- function(id) {
             width = 400,
             title = "File Upload",
             checkboxInput(
-              inputId = "split",
-              label = "Heatmap splitting",
-              value = FALSE
-            ),
-            checkboxInput(
               inputId = "databasefetch",
               label = "Fetch database annotation",
               value = FALSE
@@ -38,14 +33,6 @@ mod_data_processing_ui <- function(id) {
               uiOutput("pickgroup"),
               uiOutput("picktrack"),
               uiOutput("getannotation")
-            ),
-            conditionalPanel(
-              condition = "input.split == 1",
-              uiOutput("tsvupload")
-            ),
-            conditionalPanel(
-              condition = "input.split == 1",
-              uiOutput("splitselect")
             ),
             selectInput(
               inputId = "sequencedatafiles",
