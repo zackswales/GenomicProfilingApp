@@ -1016,6 +1016,62 @@ server <- function(input, output, session) {
   
   ## ggplot heatmap
   
+  output$ggfilterselect <- renderUI({
+    if(input$split){
+      selectInput(
+        inputId = "ggfilterby",
+        label = "Filter by:",
+        choices = filter_choices(),
+        selected = "All",
+        multiple = FALSE
+      )
+    }
+  })
+  
+  ggsplit_reactive <- reactive({
+    if (!is.null(input$tsvsplitting)) {
+      tryCatch({
+        annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+        if (ncol(annotation) > 0) {
+          colnames(annotation)[1] <- "gene_name" # Ensure the first column is named 'gene_name'
+          
+          split_col <- input$splitby
+          if (!split_col %in% colnames(annotation)) {
+            showNotification(paste("Selected column '", split_col, "' not found in annotation file."), type = "error")
+            return(NULL)
+          }
+          
+          Anno <- data.frame(name = rownames(selected_matrices_reactive()[[1]])) %>%
+            left_join(data.frame(name = annotation$gene_name, split_val = factor(annotation[[split_col]])), by = "name") %>%
+            column_to_rownames("name")
+          return(Anno)
+        } else {
+          showNotification("Annotation file is empty or has no columns.", type = "warning")
+          return(NULL)
+        }
+      }, error = function(e) {
+        showNotification(paste("Error reading or processing annotation file:", e$message), type = "error")
+        return(NULL)
+      })
+    } else {
+      return(NULL)
+    }
+  })
+  
+  ggplot_filtered_matrices_reactive <- reactive({
+    req(input$ggfilterby, selected_matrices_reactive(), ggsplit_reactive())
+    
+    if (input$ggfilterby == "All") {
+      return(selected_matrices_reactive())
+    } else {
+      selected_rows <- rownames(ggsplit_reactive())[ggsplit_reactive()$split_val == input$ggfilterby]
+      ggfiltered_mats <- lapply(selected_matrices_reactive(), function(mat) {
+        mat[selected_rows, , drop = FALSE]
+      })
+      return(ggfiltered_mats)
+    }
+  })
+  
   ggwins_reactive <- reactive({
     if (input$getFeature == 1) {
       flank_size <- input$flank
@@ -1081,42 +1137,14 @@ server <- function(input, output, session) {
     }
   })
   
-  ggsplit_reactive <- reactive({
-    if (!is.null(input$tsvsplitting)) {
-      tryCatch({
-        annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
-        if (ncol(annotation) > 0) {
-          colnames(annotation)[1] <- "gene_name" # Ensure the first column is named 'gene_name'
-          
-          split_col <- input$splitby
-          if (!split_col %in% colnames(annotation)) {
-            showNotification(paste("Selected column '", split_col, "' not found in annotation file."), type = "error")
-            return(NULL)
-          }
-          
-          Anno <- data.frame(name = rownames(selected_matrices_reactive()[[1]])) %>%
-            left_join(data.frame(name = annotation$gene_name, split_val = factor(annotation[[split_col]])), by = "name") %>%
-            column_to_rownames("name")
-          return(Anno)
-        } else {
-          showNotification("Annotation file is empty or has no columns.", type = "warning")
-          return(NULL)
-        }
-      }, error = function(e) {
-        showNotification(paste("Error reading or processing annotation file:", e$message), type = "error")
-        return(NULL)
-      })
-    } else {
-      return(NULL)
-    }
-  })
-  
+  ####################################################
   
   ggplot_heatmap_object <- eventReactive(input$plotggheatmap, {
     print("plotggheatmap button clicked")
+    if(isTRUE(input$split)){
     tryCatch({
       plot <- plotggplotHeatmap(
-        matl = selected_matrices_reactive(),
+        matl = ggplot_filtered_matrices_reactive(),
         wins = ggwins_reactive(),
         break_labels = ggbreaklabels_reactive(),
         color_palette = input$colorpalette,
@@ -1135,6 +1163,28 @@ server <- function(input, output, session) {
       print(e)
       return(NULL) # Return NULL in case of an error
     })
+    } else {
+      tryCatch({
+        plot <- plotggplotHeatmap(
+          matl = selected_matrices_reactive(),
+          wins = ggwins_reactive(),
+          break_labels = ggbreaklabels_reactive(),
+          color_palette = input$colorpalette,
+          average_profile = input$averageprofile,
+          zMin = zscaling_reactive(),
+          zMax = zscaling_reactive(),
+          log2 = input$log2,
+          dottedlines = input$dottedlines
+        )
+        print("ggplot object:")
+        print(plot)
+        plot
+      }, error = function(e) {
+        print("Error in plotggplotHeatmap:")
+        print(e)
+        return(NULL) # Return NULL in case of an error
+      })
+  }
   })
   
   output$ggplotheatmap <- renderPlot({
@@ -1174,6 +1224,7 @@ server <- function(input, output, session) {
     print("ggbreaklabels_reactive():")
     print(ggbreaklabels_reactive())
   })
+  
   
   
   

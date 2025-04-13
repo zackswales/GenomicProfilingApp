@@ -120,6 +120,10 @@ mod_visualisations_ui <- function(id){
           sidebar = sidebar(
             open = TRUE,
             title = "Heatmap Customisation",
+            conditionalPanel(
+              condition = "input.split == 1",
+              uiOutput("ggfilterselect")
+            ),
             selectInput(
               inputId = "colorpalette",
               label = "Select colour palette",
