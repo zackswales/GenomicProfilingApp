@@ -288,12 +288,6 @@ server <- function(input, output, session) {
   
   # Creating reactive objects for the matrix customisation options
   
-  strand_reactive <- reactive({
-    switch(input$strand,
-           "1" = "no",
-           "2" = "for",
-           "3" = "rev")
-  })
   
   flank_reactive <- reactive({
     input$flank
@@ -526,7 +520,7 @@ server <- function(input, output, session) {
       incProgress(0.2, detail = "Getting features...")
       
       # Filtering names of bigwig files
-      if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
+      if (all(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
         bwf <- bigwig_files[grepl("\\.f\\.bw$", bigwig_file_names)]
         bwr <- bigwig_files[grepl("\\.r\\.bw$", bigwig_file_names)]
         
@@ -545,12 +539,26 @@ server <- function(input, output, session) {
         print("bwf:")
         print(bwf)
       } else {
+        bwr <- NULL
         bwf <- bigwig_files[grepl("\\.bw$", bigwig_file_names)]
         if (length(bwf) > 0) {
           names(bwf) <- sub("\\.bw$", "", bigwig_file_names[grepl("\\.bw$", bigwig_file_names)])
         }
         print(bwf)
       }
+      
+      strand_reactive <- reactive({
+        if(length(bwf) > 0 && length(bwr) > 0){
+          if(input$flipstrand){
+            return("rev")
+          } else {
+            return("for")
+          }
+        } else {
+          return("no")
+        }
+      })
+      print(strand_reactive())
       
       incProgress(0.5, detail = "Generating matrices")
       
@@ -1142,27 +1150,27 @@ server <- function(input, output, session) {
   ggplot_heatmap_object <- eventReactive(input$plotggheatmap, {
     print("plotggheatmap button clicked")
     if(isTRUE(input$split)){
-    tryCatch({
-      plot <- plotggplotHeatmap(
-        matl = ggplot_filtered_matrices_reactive(),
-        wins = ggwins_reactive(),
-        break_labels = ggbreaklabels_reactive(),
-        color_palette = input$colorpalette,
-        average_profile = input$averageprofile,
-        zMin = zscaling_reactive(),
-        zMax = zscaling_reactive(),
-        log2 = input$log2,
-        dottedlines = input$dottedlines,
-        split = ggsplit_reactive()
-      )
-      print("ggplot object:")
-      print(plot)
-      plot
-    }, error = function(e) {
-      print("Error in plotggplotHeatmap:")
-      print(e)
-      return(NULL) # Return NULL in case of an error
-    })
+      tryCatch({
+        plot <- plotggplotHeatmap(
+          matl = ggplot_filtered_matrices_reactive(),
+          wins = ggwins_reactive(),
+          break_labels = ggbreaklabels_reactive(),
+          color_palette = input$colorpalette,
+          average_profile = input$averageprofile,
+          zMin = zscaling_reactive(),
+          zMax = zscaling_reactive(),
+          log2 = input$log2,
+          dottedlines = input$dottedlines,
+          split = ggsplit_reactive()
+        )
+        print("ggplot object:")
+        print(plot)
+        plot
+      }, error = function(e) {
+        print("Error in plotggplotHeatmap:")
+        print(e)
+        return(NULL) # Return NULL in case of an error
+      })
     } else {
       tryCatch({
         plot <- plotggplotHeatmap(
@@ -1184,7 +1192,7 @@ server <- function(input, output, session) {
         print(e)
         return(NULL) # Return NULL in case of an error
       })
-  }
+    }
   })
   
   output$ggplotheatmap <- renderPlot({
@@ -1349,8 +1357,8 @@ server <- function(input, output, session) {
   
   average_profile <- eventReactive(input$averageprofileplotbutton, {
     req(selected_matrices_reactive())
-      average_profile <- mplot(matl = selected_matrices_reactive(), colmap = colmap, feature = feature_reactive(), unit = unit_reactive(), title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = avg_breaks_reactive(), labels = avg_breaklabels_reactive())
-      return(average_profile)
+    average_profile <- mplot(matl = selected_matrices_reactive(), colmap = colmap, feature = feature_reactive(), unit = unit_reactive(), title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = avg_breaks_reactive(), labels = avg_breaklabels_reactive())
+    return(average_profile)
   })
   
   ## Downloading average profile plots

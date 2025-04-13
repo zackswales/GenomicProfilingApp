@@ -62,11 +62,10 @@ mod_data_processing_ui <- function(id) {
                 label = "Save sequence data file"
               )
             ),
-            radioButtons(
-              inputId = "strand",
-              label = "Select strandedness of sequence data:",
-              choices = list("Unstranded" = 1, "Forward" = 2, "Reverse" = 3),
-              selected = 1
+            checkboxInput(
+              inputId = "flipstrand",
+              label = "Flip strand association",
+              value = FALSE
             ),
             helpText("If all files have the same strandedness - select unstranded")
           ),
