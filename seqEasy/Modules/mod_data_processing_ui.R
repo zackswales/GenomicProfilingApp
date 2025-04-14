@@ -20,12 +20,7 @@ mod_data_processing_ui <- function(id) {
             ),
             conditionalPanel(
               condition = "input.databasefetch == 0",
-              fileInput(
-                inputId = "Region1",
-                label = "Upload region files (.bed/.gtf)",
-                accept = c(".bed", ".gtf"),
-                multiple = TRUE
-              )
+              uiOutput("Region1_ui")
             ),
             conditionalPanel(
               condition = "input.databasefetch == 1",
@@ -99,7 +94,7 @@ mod_data_processing_ui <- function(id) {
             column(
               width = 2,
               card(
-                height = "230px",
+                height = "300px",
                 card_header("Feature"),
                 selectInput(
                   inputId = "getFeature",
@@ -119,7 +114,8 @@ mod_data_processing_ui <- function(id) {
                     inputId = "flank",
                     label = "Specify flank around feature:",
                     value = 20,
-                    step = 10
+                    step = 10,
+                    min = 0
                   )
                 )
               ),

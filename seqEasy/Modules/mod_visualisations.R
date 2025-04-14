@@ -94,7 +94,7 @@ mod_visualisations_ui <- function(id){
               inputId = "heatmapplotbutton",
               label = "Plot Output"
             ),
-            helpText("Output plotting will take a few seconds"),
+            helpText("Output plotting/downloading will take a few seconds"),
             helpText("Use download buttons after clicking Plot Output"),
             downloadButton(
               outputId = "heatmapdownloadpng",

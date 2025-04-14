@@ -1,18 +1,32 @@
 server <- function(input, output, session) {
+  options(shiny.maxRequestSize = 1024^3) # 1 GB
   tab_login$server(input, output, session)
   
   output$regionfile1_name <- renderText({
-    region1_names <- if (!is.null(input$Region1)) input$Region1$name else NULL
-    region2_names <- if (!is.null(input$Region2)) input$Region2$name else NULL
-    
-    if (!is.null(region1_names) && !is.null(region2_names)) {
-      paste(c(region1_names, region2_names), collapse = ", ")
-    } else if (!is.null(region1_names)) {
-      paste(region1_names, collapse = ", ")
+    if (input$databasefetch) {
+      "No file uploaded"
+    } else if (!is.null(input$Region1)) {
+      paste(input$Region1$name, collapse = ", ")
     } else {
-      "No files uploaded"
+      "No file uploaded"
     }
   })
+  
+  output$Region1_ui <- renderUI({
+    if (input$databasefetch) {
+      fileInput(
+        inputId = "Region1", 
+        label = "Upload region files (.bed/.gtf)", 
+        accept = c(".bed", ".gtf"))
+    } else {
+      fileInput(
+        inputId = "Region1", 
+        label = "Upload region files (.bed/.gtf)", 
+        accept = c(".bed", ".gtf"),
+        multiple = TRUE)
+    }
+  })
+  
   
   ## Saving sequence data files
   
@@ -63,7 +77,7 @@ server <- function(input, output, session) {
     
     sequence_dir <- get_sequence_dir()
     
-    if(!dir.exists(sequence_dir)) {
+    if (!dir.exists(sequence_dir)) {
       dir.create(sequence_dir, recursive = TRUE)
       print(paste("Created directory:", sequence_dir))
     }
@@ -71,9 +85,17 @@ server <- function(input, output, session) {
     tryCatch({
       filepath <- input$Sequence1$datapath
       filename <- input$Sequence1$name
-      bigwig <- import.bw(filepath)
-      RDS <- saveRDS(object = bigwig, file = file.path(sequence_dir, paste0(filename, ".rds")))
-      showNotification(paste0("Sequence data file", "", filename, "", "saved successfully!"), type = "message")
+      
+      # Add progress bar
+      withProgress(message = 'Saving sequence data...', value = 0, {
+        bigwig <- import.bw(filepath) # Import the file
+        incProgress(0.5, detail = "Importing bigwig file") #update progress bar
+        
+        RDS <- saveRDS(object = bigwig, file = file.path(sequence_dir, paste0(filename, ".rds")))
+        incProgress(0.75, detail = "Saving RDS file") #update progress bar
+      })
+      
+      showNotification(paste0("Sequence data file ", filename, " saved successfully!"), type = "message")
     }, error = function(e) {
       showNotification(paste("Error saving sequence data file", e$message), type = "error")
     })
@@ -200,12 +222,10 @@ server <- function(input, output, session) {
   
   # Fetching the data from UCSC
   
-  observeEvent(input$fetchannotation, {
-    showNotification("Fetching annotation...", type = "message")
-  })
+  gr <- reactiveVal(GRanges())
   
   observeEvent(input$fetchannotation, {
-    # Add other debugging print statements here
+    showNotification("Fetching annotation...", type = "message")
   })
   
   gr <- eventReactive(input$fetchannotation, {
@@ -322,9 +342,27 @@ server <- function(input, output, session) {
            "2" = "5prime")
   })
   
+  observeEvent(input$startflank, {
+    if (is.na(input$startflank)) {
+      updateNumericInput(session, "startflank", value = 0)
+    }
+  })
+  
+  observeEvent(input$endflank, {
+    if (is.na(input$endflank)) {
+      updateNumericInput(session, "endflank", value = 0)
+    }
+  })
+  
   saved_regions <- reactiveVal(list())
   region_objects_list <- reactiveVal(list())
   wins_vector <- reactiveVal(c())
+  
+  observeEvent(input$getregion, {
+    if(is.null(input$Region1) && input$databasefetch == FALSE){
+      showNotification("No region data detected.", type = "error")
+    }
+  })
   
   observeEvent(input$getregion, {
     region_file <- if (!is.null(input$Region1)) input$Region1$datapath else NULL
@@ -366,31 +404,40 @@ server <- function(input, output, session) {
       "Window Size" = window_size
     )
     
-    current_regions <- saved_regions()
-    saved_regions(c(current_regions, list(new_region)))
-    
-    region_object <- getFeature(
-      object = combined_b,
-      start_feature = start_feature,
-      start_exon = if(is.na(start_exon)) NULL else start_exon,
-      start_exon_boundary = if(is.na(start_exon_boundary)) NULL else start_exon_boundary,
-      end_feature = end_feature,
-      end_exon = if(is.na(end_exon)) NULL else end_exon,
-      end_exon_boundary = if(is.na(end_exon_boundary)) NULL else end_exon_boundary,
-      start_flank = start_flank,
-      end_flank = end_flank,
-      start_direction = start_direction,
-      end_direction = end_direction
-    )
-    
-    
-    current_region_objects <- region_objects_list()
-    current_region_objects[[region_name]] <- region_object
-    region_objects_list(current_region_objects)
-    
-    current_wins <- wins_vector()
-    current_wins[region_name] <- as.numeric(window_size) # Ensure window_size is numeric
-    wins_vector(current_wins)
+    tryCatch({
+      region_object <- getFeature(
+        object = combined_b,
+        start_feature = start_feature,
+        start_exon = if(is.na(start_exon)) NULL else start_exon,
+        start_exon_boundary = if(is.na(start_exon_boundary)) NULL else start_exon_boundary,
+        end_feature = end_feature,
+        end_exon = if(is.na(end_exon)) NULL else end_exon,
+        end_exon_boundary = if(is.na(end_exon_boundary)) NULL else end_exon_boundary,
+        start_flank = start_flank,
+        end_flank = end_flank,
+        start_direction = start_direction,
+        end_direction = end_direction
+      )
+      
+      current_region_objects <- region_objects_list()
+      current_region_objects[[region_name]] <- region_object
+      region_objects_list(current_region_objects)
+      
+      current_wins <- wins_vector()
+      current_wins[region_name] <- as.numeric(window_size) # Ensure window_size is numeric
+      wins_vector(current_wins)
+      
+      # Move this line inside the tryCatch block
+      current_regions <- saved_regions()
+      saved_regions(c(current_regions, list(new_region)))
+      
+    }, error = function(e) {
+      # Display a notification with the error message
+      showNotification(
+        "There are no genes with that feature. Please enter another feature.",
+        type = "error"
+      )
+    })
   })
   
   observeEvent(input$clearregions, {
@@ -914,52 +961,62 @@ server <- function(input, output, session) {
   observeEvent(input$heatmapplotbutton, {
     if(length(input$selectedmatrices) == 0){
       showNotification("Matrices need to be selected before plotting", type = "warning")
-    } else {
-      showNotification("Plotting output...", type = "message")
-    }
+    } 
+  })
+  
+  
+  
+  hml <- eventReactive(input$heatmapplotbutton, {
+    req(selected_matrices_reactive())
+    
+    withProgress(message = 'Creating Heatmap...', value = 0.4, {
+      
+      if (isTRUE(input$split)) {
+        hml <- hmList(
+          matl = filtered_matrices_reactive(),
+          wins = wins_reactive(),
+          split = filtered_split_reactive(),
+          split_cols = filtered_split_cols_reactive(),
+          col_fun = heatmap_col_fun_reactive(),
+          axis_labels = axis_labels_reactive(),
+          show_row_names = show_row_names_reactive(),
+          min_quantile = heatmap_min_quantile_reactive(),
+          max_quantile = heatmap_max_quantile_reactive(),
+          row_km = input$row_km,
+          ylim = c(0, max_ylim_reactive()),
+          log2 = input$logenriched
+        )
+        incProgress(1, detail = "Heatmap created") # Update progress bar
+      } else {
+        hml <- hmList(
+          matl = selected_matrices_reactive(),
+          wins = wins_reactive(),
+          col_fun = heatmap_col_fun_reactive(),
+          axis_labels = axis_labels_reactive(),
+          show_row_names = show_row_names_reactive(),
+          min_quantile = heatmap_min_quantile_reactive(),
+          max_quantile = heatmap_max_quantile_reactive(),
+          ylim = c(0, max_ylim_reactive()),
+          row_km = input$row_km,
+          log2 = input$logenriched
+        )
+        incProgress(1, detail = "Heatmap created") # Update progress bar
+      }
+    })
+    
+    return(hml)
   })
   
   output$enrichedHeatmapPlot <- renderPlot({
     req(hml())
     req(length(hml()) > 0)
-    combined_hm <- Reduce(`+`, hml())
-    draw(combined_hm, merge_legend = TRUE)
-  })
-  
-  hml <- eventReactive(input$heatmapplotbutton, {
-    req(selected_matrices_reactive())
     
-    if (isTRUE(input$split)) {  # Ensure reactive context
-      hml <- hmList(
-        matl = filtered_matrices_reactive(),
-        wins = wins_reactive(),
-        split = filtered_split_reactive(), 
-        split_cols = filtered_split_cols_reactive(), 
-        col_fun = heatmap_col_fun_reactive(),
-        axis_labels = axis_labels_reactive(), 
-        show_row_names = show_row_names_reactive(),
-        min_quantile = heatmap_min_quantile_reactive(), 
-        max_quantile = heatmap_max_quantile_reactive(),
-        row_km = input$row_km,
-        ylim = c(0, max_ylim_reactive()),
-        log2 = input$logenriched
-      )
-    } else {
-      hml <- hmList(
-        matl = selected_matrices_reactive(),
-        wins = wins_reactive(),
-        col_fun = heatmap_col_fun_reactive(),
-        axis_labels = axis_labels_reactive(), 
-        show_row_names = show_row_names_reactive(),
-        min_quantile = heatmap_min_quantile_reactive(), 
-        max_quantile = heatmap_max_quantile_reactive(),
-        ylim = c(0, max_ylim_reactive()),
-        row_km = input$row_km,
-        log2 = input$logenriched
-      )
-    }
-    
-    return(hml)
+    withProgress(message = 'Drawing Heatmap...', value = 0, {
+      combined_hm <- Reduce(`+`, hml())
+      incProgress(0.5, detail = "Combining heatmaps")
+      draw(combined_hm, merge_legend = TRUE)
+      incProgress(0.7, detail = "Drawing plot")
+    })
   })
   
   
@@ -1105,63 +1162,70 @@ server <- function(input, output, session) {
   observeEvent(input$plotggheatmap, {
     if(length(input$selectedmatrices) == 0){
       showNotification("Matrices need to be selected before plotting", type = "warning")
-    } else {
-      showNotification("Plotting output...", type = "message")
-    }
+    } 
   })
   
   ####################################################
   
   ggplot_heatmap_object <- eventReactive(input$plotggheatmap, {
-    print("plotggheatmap button clicked")
-    if(isTRUE(input$split)){
-      tryCatch({
-        plot <- plotggplotHeatmap(
-          matl = ggplot_filtered_matrices_reactive(),
-          wins = ggwins_reactive(),
-          break_labels = ggbreaklabels_reactive(),
-          color_palette = input$colorpalette,
-          average_profile = input$averageprofile,
-          zMin = zscaling_reactive(),
-          zMax = zscaling_reactive(),
-          log2 = input$log2,
-          dottedlines = input$dottedlines,
-          split = ggsplit_reactive()
-        )
-        print("ggplot object:")
-        print(plot)
-        plot
-      }, error = function(e) {
-        print("Error in plotggplotHeatmap:")
-        print(e)
-        return(NULL) # Return NULL in case of an error
-      })
-    } else {
-      tryCatch({
-        plot <- plotggplotHeatmap(
-          matl = selected_matrices_reactive(),
-          wins = ggwins_reactive(),
-          break_labels = ggbreaklabels_reactive(),
-          color_palette = input$colorpalette,
-          average_profile = input$averageprofile,
-          zMin = zscaling_reactive(),
-          zMax = zscaling_reactive(),
-          log2 = input$log2,
-          dottedlines = input$dottedlines
-        )
-        print("ggplot object:")
-        print(plot)
-        plot
-      }, error = function(e) {
-        print("Error in plotggplotHeatmap:")
-        print(e)
-        return(NULL) # Return NULL in case of an error
-      })
-    }
+    req(length(selected_matrices_reactive()) > 0)
+    
+    withProgress(message = 'Creating Heatmap...', value = 0.5, {
+      
+      if (isTRUE(input$split)) {
+        tryCatch({
+          plot <- plotggplotHeatmap(
+            matl = ggplot_filtered_matrices_reactive(),
+            wins = ggwins_reactive(),
+            break_labels = ggbreaklabels_reactive(),
+            color_palette = input$colorpalette,
+            average_profile = input$averageprofile,
+            zMin = zscaling_reactive(),
+            zMax = zscaling_reactive(),
+            log2 = input$log2,
+            dottedlines = input$dottedlines,
+            split = ggsplit_reactive()
+          )
+          incProgress(1, detail = "Heatmap created")
+          print("ggplot object:")
+          print(plot)
+          plot
+        }, error = function(e) {
+          print("Error in plotggplotHeatmap:")
+          print(e)
+          return(NULL) # Return NULL in case of an error
+        })
+      } else {
+        tryCatch({
+          plot <- plotggplotHeatmap(
+            matl = selected_matrices_reactive(),
+            wins = ggwins_reactive(),
+            break_labels = ggbreaklabels_reactive(),
+            color_palette = input$colorpalette,
+            average_profile = input$averageprofile,
+            zMin = zscaling_reactive(),
+            zMax = zscaling_reactive(),
+            log2 = input$log2,
+            dottedlines = input$dottedlines
+          )
+          incProgress(1, detail = "Heatmap created")
+          print("ggplot object:")
+          print(plot)
+          plot
+        }, error = function(e) {
+          print("Error in plotggplotHeatmap:")
+          print(e)
+          return(NULL) # Return NULL in case of an error
+        })
+      }
+    })
   })
   
   output$ggplotheatmap <- renderPlot({
-    ggplot_heatmap_object()
+    withProgress(message = 'Drawing Heatmap...', value = 0.5, {
+      ggplot_heatmap_object()
+        incProgress(1, detail = "Heatmap rendered")
+    })
   }, height = 1000)
   
   
@@ -1301,9 +1365,7 @@ server <- function(input, output, session) {
   observeEvent(input$averageprofileplotbutton, {
     if(length(input$selectedmatrices) == 0){
       showNotification("Matrices need to be selected before plotting", type = "warning")
-    } else {
-      showNotification("Plotting output...", type = "message")
-    }
+    } 
   })
   
   output$averageprofileplot <- renderPlot({
@@ -1314,7 +1376,10 @@ server <- function(input, output, session) {
   
   average_profile <- eventReactive(input$averageprofileplotbutton, {
     req(selected_matrices_reactive())
+    withProgress("Creating average profile...", value = 0.5, {
     average_profile <- mplot(matl = selected_matrices_reactive(), colmap = colmap, feature = feature_reactive(), unit = unit_reactive(), title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = avg_breaks_reactive(), labels = avg_breaklabels_reactive())
+    incProgress(1, "Average profile created")
+    })
     return(average_profile)
   })
   

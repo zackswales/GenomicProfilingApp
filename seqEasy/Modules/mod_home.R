@@ -96,6 +96,10 @@ mod_home_ui <- function(id) {
           card_body("When uploading stranded sequence data files - ensure the filename is in the format [name].[strand].bw - with a forward stranded file replacing [strand] with f, and a reverse strand file replacing [strand] with r. Ensure when uploading two sequence files from the same sample that the names are identical (e.g. sample1.f.bw and sample1.r.bw). If using unstranded sequence data files then ensure the filename is in the format [name].bw")
         ),
         card(
+          card_header("Region files + Database fetching"),
+          card_body("Multiple region files can be uploaded at the same time and used for matrix generation. However, when fetching a database annotation, they cannot be used in conjuction with uploaded region files. Ensure to only either use uploaded region files or fetched database annotations.")
+        ),
+        card(
           card_header("Plotting inputs"),
           card_body("When retrieving previously generated matrices, the feature specification information is not stored with the matrix. Therefore when replotting the matrices ensure to restore the Feature Specification panel inputs as to what they were when the matrices were generated. Inputs in the Input Selection tab and Further Customisation + Matrix generation tab do not need to be restored.")
         ),
