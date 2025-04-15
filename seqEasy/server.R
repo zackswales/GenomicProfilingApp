@@ -211,11 +211,15 @@ server <- function(input, output, session) {
   column_choices <- reactiveVal(NULL)
   
   observeEvent(input$tsvsplitting, {
-    if(!is.null(input$tsvsplitting)) {
+    if (!is.null(input$tsvsplitting)) {
       annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
-      column_choices(colnames(annotation))
+      if (ncol(annotation) > 1) {
+        column_choices(colnames(annotation)[-1])
+      } else {
+        column_choices(NULL)
+      }
     } else {
-      columns_choices(NULL)
+      column_choices(NULL)
     }
   })
   
@@ -959,6 +963,12 @@ server <- function(input, output, session) {
   # Creating the heatmaps
   
   observeEvent(input$heatmapplotbutton, {
+    if(input$split == TRUE && is.null(input$tsvsplitting)){
+      showNotification("No splitting file detected", type = "error")
+    }
+  })
+  
+  observeEvent(input$heatmapplotbutton, {
     if(length(input$selectedmatrices) == 0){
       showNotification("Matrices need to be selected before plotting", type = "warning")
     } 
@@ -969,42 +979,54 @@ server <- function(input, output, session) {
   hml <- eventReactive(input$heatmapplotbutton, {
     req(selected_matrices_reactive())
     
-    withProgress(message = 'Creating Heatmap...', value = 0.4, {
+    tryCatch({
+      withProgress(message = 'Creating Heatmap...', value = 0.4, {
+        
+        if (isTRUE(input$split)) {
+          hml <- hmList(
+            matl = filtered_matrices_reactive(),
+            wins = wins_reactive(),
+            split = filtered_split_reactive(),
+            split_cols = filtered_split_cols_reactive(),
+            col_fun = heatmap_col_fun_reactive(),
+            axis_labels = axis_labels_reactive(),
+            show_row_names = show_row_names_reactive(),
+            min_quantile = heatmap_min_quantile_reactive(),
+            max_quantile = heatmap_max_quantile_reactive(),
+            row_km = input$row_km,
+            ylim = c(0, max_ylim_reactive()),
+            log2 = input$logenriched
+          )
+          incProgress(1, detail = "Heatmap created") # Update progress bar
+        } else {
+          hml <- hmList(
+            matl = selected_matrices_reactive(),
+            wins = wins_reactive(),
+            col_fun = heatmap_col_fun_reactive(),
+            axis_labels = axis_labels_reactive(),
+            show_row_names = show_row_names_reactive(),
+            min_quantile = heatmap_min_quantile_reactive(),
+            max_quantile = heatmap_max_quantile_reactive(),
+            ylim = c(0, max_ylim_reactive()),
+            row_km = input$row_km,
+            log2 = input$logenriched
+          )
+          incProgress(1, detail = "Heatmap created") # Update progress bar
+        }
+      })
       
-      if (isTRUE(input$split)) {
-        hml <- hmList(
-          matl = filtered_matrices_reactive(),
-          wins = wins_reactive(),
-          split = filtered_split_reactive(),
-          split_cols = filtered_split_cols_reactive(),
-          col_fun = heatmap_col_fun_reactive(),
-          axis_labels = axis_labels_reactive(),
-          show_row_names = show_row_names_reactive(),
-          min_quantile = heatmap_min_quantile_reactive(),
-          max_quantile = heatmap_max_quantile_reactive(),
-          row_km = input$row_km,
-          ylim = c(0, max_ylim_reactive()),
-          log2 = input$logenriched
-        )
-        incProgress(1, detail = "Heatmap created") # Update progress bar
-      } else {
-        hml <- hmList(
-          matl = selected_matrices_reactive(),
-          wins = wins_reactive(),
-          col_fun = heatmap_col_fun_reactive(),
-          axis_labels = axis_labels_reactive(),
-          show_row_names = show_row_names_reactive(),
-          min_quantile = heatmap_min_quantile_reactive(),
-          max_quantile = heatmap_max_quantile_reactive(),
-          ylim = c(0, max_ylim_reactive()),
-          row_km = input$row_km,
-          log2 = input$logenriched
-        )
-        incProgress(1, detail = "Heatmap created") # Update progress bar
-      }
+      return(hml)
+      
+    }, error = function(e) {
+      showNotification("Plotting error", type = "error")
+      return(NULL)
     })
-    
-    return(hml)
+  })
+  
+  observeEvent(input$logout_button, {
+    output$enrichedHeatmapPlot <- renderPlot({
+      NULL
+    })
   })
   
   output$enrichedHeatmapPlot <- renderPlot({
@@ -1167,13 +1189,17 @@ server <- function(input, output, session) {
   
   ####################################################
   
+  observeEvent(input$plotggheatmap, {
+    if(input$split == TRUE && is.null(input$tsvsplitting)){
+      showNotification("No splitting file detected", type = "error")
+    }
+  })
+  
   ggplot_heatmap_object <- eventReactive(input$plotggheatmap, {
     req(length(selected_matrices_reactive()) > 0)
-    
-    withProgress(message = 'Creating Heatmap...', value = 0.5, {
-      
-      if (isTRUE(input$split)) {
-        tryCatch({
+    tryCatch({
+      withProgress(message = 'Creating Heatmap...', value = 0.5, {
+        if (isTRUE(input$split)) {
           plot <- plotggplotHeatmap(
             matl = ggplot_filtered_matrices_reactive(),
             wins = ggwins_reactive(),
@@ -1187,16 +1213,9 @@ server <- function(input, output, session) {
             split = ggsplit_reactive()
           )
           incProgress(1, detail = "Heatmap created")
-          print("ggplot object:")
           print(plot)
           plot
-        }, error = function(e) {
-          print("Error in plotggplotHeatmap:")
-          print(e)
-          return(NULL) # Return NULL in case of an error
-        })
-      } else {
-        tryCatch({
+        } else {
           plot <- plotggplotHeatmap(
             matl = selected_matrices_reactive(),
             wins = ggwins_reactive(),
@@ -1209,15 +1228,20 @@ server <- function(input, output, session) {
             dottedlines = input$dottedlines
           )
           incProgress(1, detail = "Heatmap created")
-          print("ggplot object:")
           print(plot)
           plot
-        }, error = function(e) {
-          print("Error in plotggplotHeatmap:")
-          print(e)
-          return(NULL) # Return NULL in case of an error
-        })
-      }
+        }
+      })
+      return(plot)
+    }, error = function(e) {
+      showNotification("Plotting error", type = "error")
+      return(NULL) # Return NULL to prevent further errors
+    })
+  })
+  
+  observeEvent(input$logout_button, {
+    output$ggplotheatmap <- renderPlot({
+      NULL
     })
   })
   
@@ -1368,19 +1392,47 @@ server <- function(input, output, session) {
     } 
   })
   
+  observeEvent(input$logout_button, {
+    output$averageprofileplot <- renderPlot({
+      NULL
+    })
+  })
+  
   output$averageprofileplot <- renderPlot({
     req(average_profile())
     average_profile()
   })
   
+  observeEvent(input$averageprofileplotbutton, {
+    if(input$split == TRUE && is.null(input$tsvsplitting)){
+      showNotification("No splitting file detected", type = "error")
+    }
+  })
   
   average_profile <- eventReactive(input$averageprofileplotbutton, {
     req(selected_matrices_reactive())
-    withProgress("Creating average profile...", value = 0.5, {
-    average_profile <- mplot(matl = selected_matrices_reactive(), colmap = colmap, feature = feature_reactive(), unit = unit_reactive(), title = title_reactive(), min_quantile = averageprofile_min_quantile_reactive(), max_quantile = averageprofile_max_quantile_reactive(), alpha = alpha_reactive(), breaks = avg_breaks_reactive(), labels = avg_breaklabels_reactive())
-    incProgress(1, "Average profile created")
+    
+    tryCatch({
+      withProgress("Creating average profile...", value = 0.5, {
+        average_profile <- mplot(
+          matl = selected_matrices_reactive(),
+          colmap = colmap,
+          feature = feature_reactive(),
+          unit = unit_reactive(),
+          title = title_reactive(),
+          min_quantile = averageprofile_min_quantile_reactive(),
+          max_quantile = averageprofile_max_quantile_reactive(),
+          alpha = alpha_reactive(),
+          breaks = avg_breaks_reactive(),
+          labels = avg_breaklabels_reactive()
+        )
+        incProgress(1, "Average profile created")
+      })
+      return(average_profile)
+    }, error = function(e) {
+      showNotification("Plotting error", type = "error")
+      return(NULL)
     })
-    return(average_profile)
   })
   
   ## Downloading average profile plots

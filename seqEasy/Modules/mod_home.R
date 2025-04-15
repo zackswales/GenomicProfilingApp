@@ -105,7 +105,7 @@ mod_home_ui <- function(id) {
         ),
         card(
           card_header("Splitting file"),
-          card_body("The splitting file must be in a .tsv format with first column containing the identical gene names as the uploaded region file. The subsequent columns then contain the data which the user wants to split the heatmap by. When selecting a column to split by - ensure to not select the column which contains the gene names.")
+          card_body("The splitting file must be in a .tsv format with first column containing the identical gene names as the uploaded region file. The subsequent columns then contain the data which the user wants to split the heatmap by. Data must be in a discrete format.")
         ),
         card(
           card_header("Example of a .tsv used for splitting"),
