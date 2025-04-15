@@ -46,12 +46,7 @@ mod_data_processing_ui <- function(id) {
             ),
             conditionalPanel(
               condition = "input.newsequence == 1",
-              fileInput(
-                inputId = "Sequence1",
-                label = "Upload sequence data file (.bw)",
-                accept = ".bw",
-                multiple = FALSE
-              ),
+              uiOutput("Sequence1_ui"),
               actionButton(
                 inputId = "savesequencedata",
                 label = "Save sequence data file"

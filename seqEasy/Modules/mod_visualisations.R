@@ -218,11 +218,6 @@ mod_visualisations_ui <- function(id){
               max = 1,
               value = 1
             ),
-            conditionalPanel(
-              condition = "input.split == 1",
-              uiOutput("colourselect"),
-              uiOutput("facetselect")
-            ),
             actionButton(
               inputId = "averageprofileplotbutton",
               label = "Plot Output"

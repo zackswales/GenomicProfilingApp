@@ -2,14 +2,73 @@ server <- function(input, output, session) {
   options(shiny.maxRequestSize = 1024^3) # 1 GB
   tab_login$server(input, output, session)
   
+  
+  # Resetting all inputs when a new user logs in
+  
+  observeEvent(input$logout_button, {
+    shinyjs::reset("databasefetch")
+    shinyjs::reset("genome")
+    shinyjs::reset("group")
+    shinyjs::reset("track")
+    shinyjs::reset("Region1")
+    shinyjs::reset("newsequence")
+    shinyjs::reset("Sequence1")
+    shinyjs::reset("flipstrand")
+    shinyjs::reset("getFeature")
+    shinyjs::reset("flank")
+    shinyjs::reset("windowsize")
+    shinyjs::reset("regionname")
+    shinyjs::reset("startfeature")
+    shinyjs::reset("startexon")
+    shinyjs::reset("startexonboundary")
+    shinyjs::reset("endfeature")
+    shinyjs::reset("endexon")
+    shinyjs::reset("endexonboundary")
+    shinyjs::reset("startflank")
+    shinyjs::reset("endflank")
+    shinyjs::reset("startdirection")
+    shinyjs::reset("enddirection")
+    shinyjs::reset("clearregions")
+    shinyjs::reset("smooth")
+    shinyjs::reset("split")
+    shinyjs::reset("tsvsplitting")
+    shinyjs::reset("splitby")
+    shinyjs::reset("heatmap_col_fun")
+    shinyjs::reset("heatmapquantiles")
+    shinyjs::reset("maxylim")
+    shinyjs::reset("showrownames")
+    shinyjs::reset("kmeansclustering")
+    shinyjs::reset("logenriched")
+    shinyjs::reset("row_km")
+    shinyjs::reset("colorpalette")
+    shinyjs::reset("averageprofile")
+    shinyjs::reset("autoz")
+    shinyjs::reset("log2")
+    shinyjs::reset("dottedlines")
+    shinyjs::reset("plottitle")
+    shinyjs::reset("unit")
+    shinyjs::reset("feature")
+    shinyjs::reset("averageprofilequantiles")
+    shinyjs::reset("alpha")
+  })
+  
+  
+  ###################################
+  
   output$regionfile1_name <- renderText({
     if (input$databasefetch) {
-      "No file uploaded"
+      "No files uploaded"
     } else if (!is.null(input$Region1)) {
       paste(input$Region1$name, collapse = ", ")
     } else {
-      "No file uploaded"
+      "No files uploaded"
     }
+  })
+  
+  observeEvent(input$logout_button, {
+    output$regionfile1_name <- renderText({
+      "No files uploaded"
+    })
   })
   
   output$Region1_ui <- renderUI({
@@ -27,8 +86,21 @@ server <- function(input, output, session) {
     }
   })
   
+
+  
   
   ## Saving sequence data files
+  
+  
+  output$Sequence1_ui <- renderUI({
+    fileInput(
+      inputId = "Sequence1",
+      label = "Upload sequence data file (.bw)",
+      accept = ".bw",
+      multiple = FALSE
+    )
+  })
+  
   
   saved_sequence <- reactiveValues(list = list())
   
@@ -197,6 +269,8 @@ server <- function(input, output, session) {
     }
   })
   
+ 
+  
   output$splitselect <- renderUI({
     if(input$split){
       selectInput(
@@ -266,6 +340,12 @@ server <- function(input, output, session) {
     return(NULL)
   })
   
+  observeEvent(input$logout_button, {
+    output$annotationname <- renderPrint({
+      NULL
+    })
+  })
+  
   region_files_count <- reactive({
     req(input$Region1)
     length(input$Region1$datapath)
@@ -275,8 +355,14 @@ server <- function(input, output, session) {
     if(!is.null(input$Sequence1)) {
       paste(input$Sequence1$name, collapse = ", ")
     } else {
-      "No files uploaded"
+      "No file uploaded"
     }
+  })
+  
+  observeEvent(input$logout_button, {
+    output$seqfile1_name <- renderText({
+      "No file uploaded"
+    })
   })
   
   # Creating reactive objects for the matrix customisation options
@@ -463,6 +549,12 @@ server <- function(input, output, session) {
     }
   })
   
+  observeEvent(input$logout_button, {
+    output$savedRegionsTable <- renderDT({
+      datatable(data.frame(Message = "No regions saved yet."))
+    })
+  })
+  
   
   
   # Matrix list generation
@@ -613,6 +705,12 @@ server <- function(input, output, session) {
       return("No matrices generated")
     }
     paste(mat_names, collapse = ", ")
+  })
+  
+  observeEvent(input$logout_button, {
+    output$matrixnames <- renderText({
+      "No matrices generated"
+    })
   })
   
   # Saving Matrices
