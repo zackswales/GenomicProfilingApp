@@ -192,9 +192,6 @@ tab_login$server <- function(input, output, session) {
     # Hide logout button
     shinyjs::hide("logout_button")
     
-    output$ggplotheatmap <- renderPlot({
-      NULL # Render an empty plot
-    })
     
     # Show login dialog
     showModal(login_dialog)

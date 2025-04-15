@@ -53,6 +53,7 @@ server <- function(input, output, session) {
   })
   
   
+  
   ###################################
   
   output$regionfile1_name <- renderText({
@@ -284,6 +285,10 @@ server <- function(input, output, session) {
   
   column_choices <- reactiveVal(NULL)
   
+  observeEvent(input$logout_button, {
+    column_choices(NULL)
+  })
+  
   observeEvent(input$tsvsplitting, {
     if (!is.null(input$tsvsplitting)) {
       annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
@@ -296,7 +301,6 @@ server <- function(input, output, session) {
       column_choices(NULL)
     }
   })
-  
   
   # Fetching the data from UCSC
   
@@ -571,7 +575,6 @@ server <- function(input, output, session) {
       
       region_file <- if (!is.null(input$Region1)) input$Region1$datapath else NULL
       region2_file <- if (!is.null(input$Region2)) input$Region2$datapath else NULL
-      
       all_rds_files <- list.files(sequence_dir, pattern = "\\.rds$", full.names = TRUE)
       
       all_rds_file_names_no_ext <- tools::file_path_sans_ext(basename(all_rds_files))
@@ -1071,8 +1074,6 @@ server <- function(input, output, session) {
       showNotification("Matrices need to be selected before plotting", type = "warning")
     } 
   })
-  
-  
   
   hml <- eventReactive(input$heatmapplotbutton, {
     req(selected_matrices_reactive())
