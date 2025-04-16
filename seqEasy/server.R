@@ -52,9 +52,9 @@ server <- function(input, output, session) {
     shinyjs::reset("alpha")
   })
   
+  ## File upload logic
   
-  
-  ###################################
+  # Region file upload text output
   
   output$regionfile1_name <- renderText({
     if (input$databasefetch) {
@@ -66,18 +66,23 @@ server <- function(input, output, session) {
     }
   })
   
+  # Resetting text if user logs out
+  
   observeEvent(input$logout_button, {
     output$regionfile1_name <- renderText({
       "No files uploaded"
     })
   })
   
+  # Creating the file input for region files
+  
   output$Region1_ui <- renderUI({
     if (input$databasefetch) {
       fileInput(
         inputId = "Region1", 
         label = "Upload region files (.bed/.gtf)", 
-        accept = c(".bed", ".gtf"))
+        accept = c(".bed", ".gtf"),
+        multiple = TRUE)
     } else {
       fileInput(
         inputId = "Region1", 
@@ -87,11 +92,9 @@ server <- function(input, output, session) {
     }
   })
   
-
-  
-  
   ## Saving sequence data files
   
+  # Creating the file input for sequence files
   
   output$Sequence1_ui <- renderUI({
     fileInput(
@@ -102,6 +105,7 @@ server <- function(input, output, session) {
     )
   })
   
+  # Reading in and calling user-specific pre-uploaded sequence files
   
   saved_sequence <- reactiveValues(list = list())
   
@@ -111,7 +115,6 @@ server <- function(input, output, session) {
     
     if(!dir.exists(sequence_dir)) {
       dir.create(sequence_dir, recursive = TRUE)
-      print(paste("Created directory:", sequence_dir))
     }
   })
   
@@ -145,6 +148,8 @@ server <- function(input, output, session) {
     }
   )
   
+  # If new sequence file uploaded then saved to their directory as an RDS file
+  
   observeEvent(input$savesequencedata, {
     req(input$Sequence1, session$userData$user_dir)
     
@@ -152,7 +157,6 @@ server <- function(input, output, session) {
     
     if (!dir.exists(sequence_dir)) {
       dir.create(sequence_dir, recursive = TRUE)
-      print(paste("Created directory:", sequence_dir))
     }
     
     tryCatch({
@@ -174,12 +178,16 @@ server <- function(input, output, session) {
     })
   })
   
+  # Updating the select input with the users sequnence files in their directory
+  
   observe({
     sequence_selection <- saved_sequence_poll()
     updateSelectInput(session, "sequencedatafiles",
                       choices = sequence_selection,
                       selected = NULL)
   })
+  
+  # Clearing sequence files from the user's directory
   
   observeEvent(input$clearsequence, {
     req(session$userData$user_dir)
@@ -199,8 +207,26 @@ server <- function(input, output, session) {
     }
   })
   
+  # Output of the sequence file name to text
+  
+  output$seqfile1_name <- renderText({
+    if(!is.null(input$Sequence1)) {
+      paste(input$Sequence1$name, collapse = ", ")
+    } else {
+      "No file uploaded"
+    }
+  })
+  
+  observeEvent(input$logout_button, {
+    output$seqfile1_name <- renderText({
+      "No file uploaded"
+    })
+  })
+  
   
   ## Database annotation fetching
+  
+  # Selecting genome
   
   output$pickgenome <- renderUI({
     if(input$databasefetch){
@@ -213,6 +239,8 @@ server <- function(input, output, session) {
     }
   })
   
+  # Selecting group
+  
   output$pickgroup <- renderUI({
     if(input$databasefetch){
       selectInput(
@@ -224,9 +252,11 @@ server <- function(input, output, session) {
     }
   })
   
+  # Selecting track
+  
   output$picktrack <- renderUI({
     if (input$databasefetch) {
-      if (!is.null(input$genome)) {  # Check if input$genome has a value
+      if (!is.null(input$genome)) { 
         genome_selected <- input$genome
         
         track_choices <- switch(genome_selected,
@@ -243,12 +273,14 @@ server <- function(input, output, session) {
         )
       } else {
         # Handle the case where input$genome is NULL (e.g., return a default UI)
-        return(NULL) # Or you can return a default select input
+        return(NULL) 
       }
     } else {
-      return(NULL) # Handle the case where databasefetch is not clicked
+      return(NULL) 
     }
   })
+  
+  # Adding an action button where the user then fetches the annotation file they have specified
   
   output$getannotation <- renderUI({
     if(input$databasefetch){
@@ -259,50 +291,7 @@ server <- function(input, output, session) {
     }
   })
   
-  output$tsvupload <- renderUI({
-    if (input$split) {
-      fileInput(
-        inputId = "tsvsplitting",
-        label = "Upload .tsv file for splitting",
-        accept = ".tsv",
-        multiple = FALSE
-      )
-    }
-  })
-  
- 
-  
-  output$splitselect <- renderUI({
-    if(input$split){
-      selectInput(
-        inputId = "splitby",
-        label = "Select column to split by:",
-        choices = column_choices(),
-        selected = column_choices()[2]
-      )
-    }
-  })
-  
-  column_choices <- reactiveVal(NULL)
-  
-  observeEvent(input$logout_button, {
-    column_choices(NULL)
-  })
-  
-  observeEvent(input$tsvsplitting, {
-    if (!is.null(input$tsvsplitting)) {
-      annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
-      if (ncol(annotation) > 1) {
-        column_choices(colnames(annotation)[-1])
-      } else {
-        column_choices(NULL)
-      }
-    } else {
-      column_choices(NULL)
-    }
-  })
-  
-  # Fetching the data from UCSC
+  ## Code to fetch the data once fetch annotation has been clicked
   
   gr <- reactiveVal(GRanges())
   
@@ -344,6 +333,8 @@ server <- function(input, output, session) {
     return(NULL)
   })
   
+  # Resetting the annotation name output
+  
   observeEvent(input$logout_button, {
     output$annotationname <- renderPrint({
       NULL
@@ -355,22 +346,10 @@ server <- function(input, output, session) {
     length(input$Region1$datapath)
   })
   
-  output$seqfile1_name <- renderText({
-    if(!is.null(input$Sequence1)) {
-      paste(input$Sequence1$name, collapse = ", ")
-    } else {
-      "No file uploaded"
-    }
-  })
   
-  observeEvent(input$logout_button, {
-    output$seqfile1_name <- renderText({
-      "No file uploaded"
-    })
-  })
+  
   
   # Creating reactive objects for the matrix customisation options
-  
   
   flank_reactive <- reactive({
     input$flank
@@ -448,6 +427,8 @@ server <- function(input, output, session) {
     }
   })
   
+  # Creating the getFeature region list
+  
   saved_regions <- reactiveVal(list())
   region_objects_list <- reactiveVal(list())
   wins_vector <- reactiveVal(c())
@@ -457,6 +438,8 @@ server <- function(input, output, session) {
       showNotification("No region data detected.", type = "error")
     }
   })
+  
+  # Logic for once a region has been specified and the getregion action button is clicked
   
   observeEvent(input$getregion, {
     region_file <- if (!is.null(input$Region1)) input$Region1$datapath else NULL
@@ -518,15 +501,13 @@ server <- function(input, output, session) {
       region_objects_list(current_region_objects)
       
       current_wins <- wins_vector()
-      current_wins[region_name] <- as.numeric(window_size) # Ensure window_size is numeric
+      current_wins[region_name] <- as.numeric(window_size) 
       wins_vector(current_wins)
       
-      # Move this line inside the tryCatch block
       current_regions <- saved_regions()
       saved_regions(c(current_regions, list(new_region)))
       
     }, error = function(e) {
-      # Display a notification with the error message
       showNotification(
         "There are no genes with that feature. Please enter another feature.",
         type = "error"
@@ -534,17 +515,20 @@ server <- function(input, output, session) {
     })
   })
   
+  # Clearing the region list 
+  
   observeEvent(input$clearregions, {
     saved_regions(list())
     region_objects_list(list())
     wins_vector(c())
   })
   
+  # Creating a data table to store the regions created 
+  
   output$savedRegionsTable <- renderDT({
     if (input$getFeature == 4) {
       regions_list <- saved_regions()
       if (length(regions_list) > 0) {
-        # Combine data frames from the list into a single data frame
         df <- do.call(rbind, regions_list)
         datatable(df)
       } else {
@@ -552,6 +536,8 @@ server <- function(input, output, session) {
       }
     }
   })
+  
+  # Resetting the datatable upon logout
   
   observeEvent(input$logout_button, {
     output$savedRegionsTable <- renderDT({
@@ -561,7 +547,7 @@ server <- function(input, output, session) {
   
   
   
-  # Matrix list generation
+  # Matrix list generation from all the inputs
   
   
   matl <- eventReactive(input$matrixgeneration, {
@@ -570,6 +556,8 @@ server <- function(input, output, session) {
     withProgress(message = "Matrix Generation", value = 0, {
       
       regions <- list()
+      
+      # Fetch the sequence directory and region files
       
       sequence_dir <- get_sequence_dir()
       
@@ -585,7 +573,7 @@ server <- function(input, output, session) {
       names(bigwig_files) <- tools::file_path_sans_ext(basename(selected_rds_files))
       bigwig_file_names <- names(bigwig_files)
       
-      # Import region files and get features
+      # Import region files
       
       if (!is.null(input$Region1)){
         b <- readBed(region_file)
@@ -596,6 +584,8 @@ server <- function(input, output, session) {
       
       
       incProgress(0.1, detail = "Reading region files...")
+      
+      # Getting features the region file
       
       if (input$getFeature == 1) {
         features <- getFeature(combined_b, start_feature = "TSS", end_feature = "TES")
@@ -630,7 +620,8 @@ server <- function(input, output, session) {
       
       incProgress(0.2, detail = "Getting features...")
       
-      # Filtering names of bigwig files
+      # Filtering names of bigwig files and storing in a forward and reverse strand object
+      
       if (all(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
         bwf <- bigwig_files[grepl("\\.f\\.bw$", bigwig_file_names)]
         bwr <- bigwig_files[grepl("\\.r\\.bw$", bigwig_file_names)]
@@ -658,6 +649,8 @@ server <- function(input, output, session) {
         print(bwf)
       }
       
+      # Setting strandedness
+      
       strand_reactive <- reactive({
         if(length(bwf) > 0 && length(bwr) > 0){
           if(input$flipstrand){
@@ -673,7 +666,8 @@ server <- function(input, output, session) {
       
       incProgress(0.5, detail = "Generating matrices")
       
-      # Import bigwig files as a list
+      # Deploying the matList function and generating the matrices
+      
       if (any(grepl("\\.f\\.bw$|\\.r\\.bw$", bigwig_file_names))) {
         if (input$getFeature == 1) {
           grl <- list("features" = features)
@@ -701,6 +695,8 @@ server <- function(input, output, session) {
     })
   })
   
+  # Rendering the names of the matrices
+  
   output$matrixnames <- renderText({
     req(matl())
     mat_names <- names(matl())
@@ -716,29 +712,28 @@ server <- function(input, output, session) {
     })
   })
   
-  # Saving Matrices
+  ## Saving Matrices
   
-  # Saving Matrices
-  # Reactive values to store saved matrices
-  # Ensure user directory is set when logging in
+  # Matrices saved as .rds files
+
   saved_matrices <- reactiveValues(list = list())
   
   observe({
-    req(session$userData$user_dir)  # Ensure user directory exists
+    req(session$userData$user_dir) 
     save_dir <- file.path(session$userData$user_dir, "matrices")
     
     if (!dir.exists(save_dir)) {
       dir.create(save_dir, recursive = TRUE)
-      print(paste("Created directory:", save_dir))  # Debugging statement
+      print(paste("Created directory:", save_dir))
     }
   })
   
-  # Function to safely get save_dir
+  # Function to get save_dir
   get_save_dir <- function() {
     if (!is.null(session$userData$user_dir)) {
       return(file.path(session$userData$user_dir, "matrices"))
     } else {
-      return(NULL)  # Return NULL if user is not logged in
+      return(NULL)
     }
   }
   
@@ -751,7 +746,7 @@ server <- function(input, output, session) {
       if (!is.null(save_dir) && dir.exists(save_dir)) {
         return(file.info(save_dir)$mtime)
       } else {
-        return(Sys.time())  # Return current time to avoid NULL issue
+        return(Sys.time())
       }
     },
     valueFunc = function() {
@@ -765,15 +760,16 @@ server <- function(input, output, session) {
     }
   )
   
-  # Event to handle saving matrices
+  # Event to handle saving matrices once action button clicked
+  
   observeEvent(input$savematrices, {
-    req(matl(), session$userData$user_dir)  # Ensure matrices exist & user is logged in
+    req(matl(), session$userData$user_dir)
     
     save_dir <- get_save_dir()
     
     if (!dir.exists(save_dir)) {
       dir.create(save_dir, recursive = TRUE)
-      print(paste("Created directory:", save_dir))  # Debugging statement
+      print(paste("Created directory:", save_dir))
     }
     
     mat_list <- matl()
@@ -784,15 +780,16 @@ server <- function(input, output, session) {
         saveRDS(mat_list[[mat_name]], file = file_path)
         Sys.sleep(0.1)
         showNotification(paste("Matrix", mat_name, "saved successfully!"), type = "message")
-        print(paste("Saved matrix:", mat_name, "to", file_path))  # Debugging statement
+        print(paste("Saved matrix:", mat_name, "to", file_path))
       }, error = function(e) {
         showNotification(paste("Error saving matrix", mat_name, ":", e$message), type = "error")
-        print(paste("Error saving matrix:", mat_name, e$message))  # Debugging statement
+        print(paste("Error saving matrix:", mat_name, e$message))  
       })
     }
   })
   
   # Display saved matrices
+  
   output$savedmatrices <- renderText({
     matrix_names <- saved_matrices_poll()
     if (length(matrix_names) == 0) {
@@ -813,9 +810,8 @@ server <- function(input, output, session) {
         if (file.exists(file_path)) {
           tryCatch({
             file.remove(file_path)
-            print(paste("File deleted:", file_path))  # Debugging statement
+            print(paste("File deleted:", file_path))  
           }, error = function(e) {
-            print(paste("Error deleting file:", file_path, e$message)) 
             showNotification(paste("Error deleting file:", basename(file_path), e$message), type = "error")
           })
         }
@@ -827,11 +823,63 @@ server <- function(input, output, session) {
   })
   
   # Update UI with saved matrices
+  
   observe({
     matrix_names <- saved_matrices_poll()
     updateCheckboxGroupInput(session, "selectedmatrices",
                              choices = matrix_names,
                              selected = NULL)
+  })
+  
+  ## Splitting file uploads
+  
+  # Creating the tsv upload for a splitting file in the visualisations stage
+  
+  output$tsvupload <- renderUI({
+    if (input$split) {
+      fileInput(
+        inputId = "tsvsplitting",
+        label = "Upload .tsv file for splitting",
+        accept = ".tsv",
+        multiple = FALSE
+      )
+    }
+  })
+  
+  # Select input for which column in the .tsv file they are splitting by
+  
+  output$splitselect <- renderUI({
+    if(input$split){
+      selectInput(
+        inputId = "splitby",
+        label = "Select column to split by:",
+        choices = column_choices(),
+        selected = column_choices()[2]
+      )
+    }
+  })
+  
+  column_choices <- reactiveVal(NULL)
+  
+  # Resetting the splitting choices upon logout
+  
+  observeEvent(input$logout_button, {
+    column_choices(NULL)
+  })
+  
+  # Updating column_choices with the columns in the splitting file except the first one (gene name)
+  
+  observeEvent(input$tsvsplitting, {
+    if (!is.null(input$tsvsplitting)) {
+      annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+      if (ncol(annotation) > 1) {
+        column_choices(colnames(annotation)[-1])
+      } else {
+        column_choices(NULL)
+      }
+    } else {
+      column_choices(NULL)
+    }
   })
   
   
@@ -867,21 +915,20 @@ server <- function(input, output, session) {
     unique_families <- unique(split_reactive()$split_val)
     
     if (length(unique_families) == 2) {
-      # Create named vector directly with backticks
       colors <- c("#DA4167", "#083D77")
       names(colors) <- unique_families[1:2]
       list(split_val = colors)
     } else if (length(unique_families) > 2) {
-      # Assign colors from a palette for more than two unique values
       color_palette <- grDevices::rainbow(length(unique_families))
       names(color_palette) <- unique_families
-      names(color_palette) <- paste0("`", names(color_palette), "`") # Add backticks to the names.
+      names(color_palette) <- paste0("`", names(color_palette), "`") 
       list(split_val = color_palette)
     } else {
-      # Handle cases with 0 or 1 unique values
       list(split_val = c("default" = "gray"))
     }
   })
+  
+  # Adding ability to filter heatmaps rather than just splitting
   
   filter_choices <- reactiveVal(NULL)
   
@@ -911,28 +958,27 @@ server <- function(input, output, session) {
   })
   
   filtered_data <- reactive({
-    req(input$filterby, split_reactive(), selected_matrices_reactive()) # Ensure dependencies are met
+    req(input$filterby, split_reactive(), selected_matrices_reactive())
     
     if (input$filterby == "All") {
-      # If "All" is selected, return the original data
       return(selected_matrices_reactive())
     } else {
-      # If a specific filter is selected, filter the data
       selected_rows <- rownames(split_reactive())[split_reactive()$split_val == input$filterby]
-      return(selected_matrices_reactive()[selected_rows, , drop = FALSE]) # Filter the matrix
+      return(selected_matrices_reactive()[selected_rows, , drop = FALSE]) 
     }
   })
   
-  # Creating other reactive objects for heatmap customisation
+  ## Creating other reactive objects for heatmap customisation
+  
+  # Reading in the matrices selected by the user from their personal directory
   
   selected_matrices_reactive <- reactive({
-    req(input$selectedmatrices, session$userData$user_dir)  # Ensure user directory exists
+    req(input$selectedmatrices, session$userData$user_dir)  
     
-    # Define the save directory dynamically for the logged-in user
     save_dir <- file.path(session$userData$user_dir, "matrices")
     
     selected_mats <- lapply(input$selectedmatrices, function(mat_name) {
-      mat_path <- file.path(save_dir, paste0(mat_name, ".rds"))  # Construct the correct path
+      mat_path <- file.path(save_dir, paste0(mat_name, ".rds"))  
       if (file.exists(mat_path)) {
         return(readRDS(mat_path))
       } else {
@@ -940,7 +986,7 @@ server <- function(input, output, session) {
       }
     })
     
-    selected_mats <- selected_mats[!sapply(selected_mats, is.null)]  # Remove NULL values
+    selected_mats <- selected_mats[!sapply(selected_mats, is.null)]  
     names(selected_mats) <- input$selectedmatrices[!sapply(selected_mats, is.null)]
     
     return(selected_mats)
@@ -970,6 +1016,8 @@ server <- function(input, output, session) {
   max_ylim_reactive <- reactive({
     input$maxylim
   })
+  
+  # Windows depend on the features they are looking at - whether it is the full gene or around a given point
   
   wins_reactive <- reactive({
     req(flank_reactive(), windowsize_reactive())
@@ -1021,7 +1069,9 @@ server <- function(input, output, session) {
     }
   })
   
-  # Creating reactive objects for the splitting, matrix selection, and split colours for when filtering
+  ## Creating reactive objects for the splitting, matrix selection, and split colours for when filtering
+  
+  # Editing matrices and splitting object and colours so that it is only what the user has selected to filter by
   
   filtered_matrices_reactive <- reactive({
     req(input$filterby, selected_matrices_reactive(), split_reactive())
@@ -1096,7 +1146,7 @@ server <- function(input, output, session) {
             ylim = c(0, max_ylim_reactive()),
             log2 = input$logenriched
           )
-          incProgress(1, detail = "Heatmap created") # Update progress bar
+          incProgress(1, detail = "Heatmap created") 
         } else {
           hml <- hmList(
             matl = selected_matrices_reactive(),
@@ -1110,7 +1160,7 @@ server <- function(input, output, session) {
             row_km = input$row_km,
             log2 = input$logenriched
           )
-          incProgress(1, detail = "Heatmap created") # Update progress bar
+          incProgress(1, detail = "Heatmap created") 
         }
       })
       
@@ -1141,7 +1191,7 @@ server <- function(input, output, session) {
   })
   
   
-  ## Download options for the enrichedHeatmap heatmaps
+  ## Download options for the enrichedHeatmap heatmaps as a PDF or PNG
   
   output$heatmapdownloadpng <- downloadHandler(
     filename = function() { paste("enrichedHeatmap_", Sys.Date(), ".png", sep="") },
@@ -1166,6 +1216,8 @@ server <- function(input, output, session) {
   )
   
   ## ggplot heatmap
+  
+  # Creating splitting and filtering objects and rendering the UI
   
   output$ggfilterselect <- renderUI({
     if(input$split){
@@ -1280,13 +1332,13 @@ server <- function(input, output, session) {
     return(z)
   })
   
+  # Creating the ggplot heatmap object and rendering the plot
+  
   observeEvent(input$plotggheatmap, {
     if(length(input$selectedmatrices) == 0){
       showNotification("Matrices need to be selected before plotting", type = "warning")
     } 
   })
-  
-  ####################################################
   
   observeEvent(input$plotggheatmap, {
     if(input$split == TRUE && is.null(input$tsvsplitting)){
@@ -1351,6 +1403,7 @@ server <- function(input, output, session) {
     })
   }, height = 1000)
   
+  # Download options for the ggplot heatmap as either a PDF or PNG
   
   output$ggheatmapdownloadpng <- downloadHandler(
     filename = function() { paste("ggplot2heatmap_", Sys.Date(), ".png", sep="") },
@@ -1369,25 +1422,6 @@ server <- function(input, output, session) {
       dev.off()
     }
   )
-  
-  observe({
-    print("Selected Matrices:")
-    print(selected_matrices_reactive())
-  })
-  
-  observe({
-    print("ggwins_reactive():")
-    print(ggwins_reactive())
-  })
-  
-  observe({
-    print("ggbreaklabels_reactive():")
-    print(ggbreaklabels_reactive())
-  })
-  
-  
-  
-  
   
   
   ## Average profile plot
@@ -1476,6 +1510,8 @@ server <- function(input, output, session) {
   feature_reactive <- reactive({
     input$feature
   })
+  
+  # Defining a colour palette for the average profile plot
   
   pal = c(RColorBrewer::brewer.pal(n = 9,name = "Set1"))
   pal2 = c(wes_palette("Darjeeling2")[2],wes_palette("Zissou1")[1],wes_palette("Darjeeling1")[4],wes_palette("Darjeeling1")[3])

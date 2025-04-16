@@ -2,7 +2,7 @@ library(shiny)
 library(shinyjs)
 
 # Define the path to your CSV file
-credentials_file <- '~/GenomicProfilingApp/register.csv'
+credentials_file <- '~/GenomicProfilingApp/seqEasy/register.csv'
 
 # Define the base directory where user folders will be stored
 base_dir <- '~/GenomicProfilingApp/seqEasy/users'
