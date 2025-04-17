@@ -14,6 +14,9 @@ mod_home_ui <- function(id) {
           card_body("To begin, please navigate to the step-by-step tutorial tab to learn how to utilise the app fully, and then the requirements tab for specification of the formats and file types that the app accepts")
         ),
         card(
+          card_body("Test data is available for download within the tutorial tab")
+        ),
+        card(
           card_header("Example Outputs"),
           card_body(
             tags$div(
@@ -86,6 +89,15 @@ mod_home_ui <- function(id) {
           card(
             card_header("Downloading Outputs"),
             card_body("For each of the three plots, in the sidebar, there are options to download the output as either a .png file or a .pdf file once the plot has been generated")
+          )
+        ),
+        card(
+          card_header("Test files"),
+          card_body(
+            downloadButton(
+              outputId = "testfiledownload",
+              label = "Download test files"
+            )
           )
         )
       ),

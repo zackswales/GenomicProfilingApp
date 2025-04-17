@@ -2,6 +2,29 @@ server <- function(input, output, session) {
   options(shiny.maxRequestSize = 1024^3) # 1 GB
   tab_login$server(input, output, session)
   
+  ## Logic for downloading test files
+  
+  output$testfiledownload <- downloadHandler(
+    filename = function() {
+      paste0("seqEasy_test_files", Sys.Date(), ".zip")
+    },
+    content = function(file) {
+      withProgress(message = 'Creating download package...', value = 0, {
+        tmpdir <- tempdir()
+        test_files <- list.files("data", full.names = TRUE)
+        num_files <- length(test_files)
+        
+        for (i in 1:num_files) {
+          file.copy(test_files[i], tmpdir, overwrite = TRUE)
+          incProgress(1/num_files, detail = paste("Copying file", i, "of", num_files))
+        }
+        
+        zip(zipfile = file, files = file.path(tmpdir, basename(test_files)), flags = "-j")
+      })
+    },
+    contentType = "application/zip"
+  )
+  
   
   # Resetting all inputs when a new user logs in
   
