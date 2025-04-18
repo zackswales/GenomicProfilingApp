@@ -329,7 +329,7 @@ mplot<-function(matl,matlc=NULL,feature = "Gene", unit = "Coverage (BPM)", title
   }
   
   
-  p <- df |> ggplot(aes(Index,Coverage,group=Sample,colour=!!sym(colour_by)))
+  p <- df |> ggplot(aes(Index,Coverage,group=!!sym(colour_by),colour=!!sym(colour_by)))
   
   if(error == T & summarise_by == "mean"){
     p <- p +geom_ribbon(aes(ymin=Coverage-Error,ymax=Coverage+Error,fill=!!sym(colour_by)),alpha=alpha_error)
