@@ -62,7 +62,7 @@ mod_visualisations_ui <- function(id){
             ),
             numericInput(
               inputId = "maxylim",
-              label = "Upper y-axis limit for metaplot",
+              label = "Upper y-axis limit for average profile plot",
               value = 5000,
               step = 50
             ),
@@ -189,6 +189,20 @@ mod_visualisations_ui <- function(id){
           sidebar = sidebar(
             open = TRUE, 
             title = "Average Profile Plot Customisation",
+            conditionalPanel(
+              condition = "input.split == 1",
+              uiOutput("columnstoinclude"),
+              uiOutput("colouringby"),
+              checkboxInput(
+                inputId = "facetchoice",
+                label = "Facet plot",
+                value = FALSE
+              ),
+              conditionalPanel(
+                condition = "input.facetchoice == 1",
+                uiOutput("facetingby")
+              )
+            ),
             textInput(
               inputId = "plottitle",
               label = "Enter plot title:",

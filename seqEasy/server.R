@@ -877,7 +877,7 @@ server <- function(input, output, session) {
         inputId = "splitby",
         label = "Select column to split by:",
         choices = column_choices(),
-        selected = column_choices()[2]
+        selected = column_choices()[1]
       )
     }
   })
@@ -1450,6 +1450,115 @@ server <- function(input, output, session) {
   ## Average profile plot
   # Customisation options for the average profile plot
   
+  averagecolourbychoices <- reactiveVal(NULL)
+  averagefacetbychoices <- reactiveVal(NULL)
+  
+  output$columnstoinclude <- renderUI({
+    if(input$split){
+      selectInput(
+        inputId = "columninclude",
+        label = "Select splitting columns to include in plot",
+        multiple = TRUE,
+        choices = column_choices(),
+        selected = NULL
+      )
+    }
+  })
+  
+  observeEvent(input$tsvsplitting, {
+    if(!is.null(input$tsvsplitting)){
+      annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+      if(ncol(annotation) > 1) {
+        averagecolourbychoices(c("Sample", colnames(annotation)[-1]))
+        averagefacetbychoices(c("Sample", colnames(annotation)[-1]))
+      } else {
+        averagefacetbychoices(NULL)
+        averagecolourbychoices(NULL)
+      }
+    } else {
+      averagefacetbychoices(NULL)
+      averagecolourbychoices(NULL)
+    }
+  })
+  
+  output$colouringby <- renderUI({
+    if(input$split){
+      selectInput(
+        inputId = "colourby",
+        label = "Colour by:",
+        multiple = FALSE,
+        choices = averagecolourbychoices(),
+        selected = averagecolourbychoices()[1]
+      )
+    } else {
+      NULL
+    }
+  })
+  
+  output$facetingby <- renderUI({
+    if(input$split){
+      selectInput(
+        inputId = "facetby",
+        label = "Facet by:",
+        multiple = TRUE,
+        choices = averagefacetbychoices(),
+        selected = averagefacetbychoices()[1]
+      )
+    }
+  })
+  
+  
+  average_split_reactive <- reactive({
+    req(input$split, input$tsvsplitting$datapath, input$columninclude)
+    
+    annotation <- read_tsv(input$tsvsplitting$datapath, col_names = TRUE)
+    colnames(annotation)[1] <- "gene_name"
+    
+    selected_cols <- input$columninclude
+    if (!all(selected_cols %in% colnames(annotation))) {
+      stop("One or more selected columns not found in annotation file.")
+    }
+    
+    Anno <- data.frame(name = annotation$gene_name)
+    
+    for (i in seq_along(selected_cols)) {
+      col_name <- paste0("split_val", i)  # Create a name for each new column
+      Anno[[col_name]] <- factor(annotation[[selected_cols[i]]])  # Add the corresponding column
+    }
+    
+    # Set row names as gene names
+    Anno <- Anno %>% column_to_rownames("name")
+    
+    return(Anno)
+  })
+  
+  
+  average_split_cols_reactive <- reactive({
+    req(average_split_reactive(), input$colourby)  # Ensure both inputs are available
+    
+    # Get the specified column name for color by
+    colourby_col <- input$colourby
+    
+    # Check if the selected column exists in the reactive dataframe
+    if (!colourby_col %in% colnames(average_split_reactive())) {
+      stop("Selected column not found in the reactive data.")
+    }
+    
+    # Get the unique families from the specified column
+    unique_families <- unique(average_split_reactive()[[colourby_col]])
+    
+    # If unique families are found, generate a color palette
+    if (length(unique_families) > 0) {
+      color_palette <- grDevices::rainbow(length(unique_families))
+      names(color_palette) <- unique_families
+      return(color_palette)
+    } else {
+      return(NULL)
+    }
+  })
+  
+  
+  
   title_reactive <- reactive({
     input$plottitle
   })
@@ -1550,6 +1659,19 @@ server <- function(input, output, session) {
     } 
   })
   
+  observeEvent(input$averageprofileplotbutton, {
+    print("split")
+    print(average_split_reactive())
+    print("split cols")
+    print(average_split_cols_reactive())
+    print("column include")
+    print(input$columnstoinclude)
+    print("facetby")
+    print(input$facetby)
+    print("colourby")
+    print(input$colourby)
+  })
+  
   observeEvent(input$logout_button, {
     output$averageprofileplot <- renderPlot({
       NULL
@@ -1572,18 +1694,37 @@ server <- function(input, output, session) {
     
     tryCatch({
       withProgress("Creating average profile...", value = 0.5, {
+        if(input$split){
         average_profile <- mplot(
           matl = selected_matrices_reactive(),
-          colmap = colmap,
+          split = average_split_reactive(),
+          colmap = average_split_cols_reactive(),
           feature = feature_reactive(),
           unit = unit_reactive(),
           title = title_reactive(),
           min_quantile = averageprofile_min_quantile_reactive(),
           max_quantile = averageprofile_max_quantile_reactive(),
+          colour_by = input$colourby,
+          facet = input$facetby,
           alpha = alpha_reactive(),
           breaks = avg_breaks_reactive(),
-          labels = avg_breaklabels_reactive()
+          labels = avg_breaklabels_reactive(),
+          facet_scale = "free_y"
         )
+        } else {
+          average_profile <- mplot(
+            matl = selected_matrices_reactive(),
+            colmap = colmap,
+            feature = feature_reactive(),
+            unit = unit_reactive(),
+            title = title_reactive(),
+            min_quantile = averageprofile_min_quantile_reactive(),
+            max_quantile = averageprofile_max_quantile_reactive(),
+            alpha = alpha_reactive(),
+            breaks = avg_breaks_reactive(),
+            labels = avg_breaklabels_reactive()
+          )
+        }
         incProgress(1, "Average profile created")
       })
       return(average_profile)
