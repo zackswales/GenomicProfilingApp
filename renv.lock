@@ -3,6 +3,26 @@
     "Version": "4.3.3",
     "Repositories": [
       {
+        "Name": "BioCsoft",
+        "URL": "https://bioconductor.org/packages/3.18/bioc"
+      },
+      {
+        "Name": "BioCann",
+        "URL": "https://bioconductor.org/packages/3.18/data/annotation"
+      },
+      {
+        "Name": "BioCexp",
+        "URL": "https://bioconductor.org/packages/3.18/data/experiment"
+      },
+      {
+        "Name": "BioCworkflows",
+        "URL": "https://bioconductor.org/packages/3.18/workflows"
+      },
+      {
+        "Name": "BioCbooks",
+        "URL": "https://bioconductor.org/packages/3.18/books"
+      },
+      {
         "Name": "CRAN",
         "URL": "https://cloud.r-project.org"
       }
@@ -6020,6 +6040,49 @@
       "Author": "Simon Potter [aut, trl, cre], Simon Sapin [aut], Ian Bicking [aut]",
       "Maintainer": "Simon Potter <simon@sjp.co.nz>",
       "Repository": "CRAN"
+    },
+    "seqEasyFunctions": {
+      "Package": "seqEasyFunctions",
+      "Version": "0.1.0",
+      "Source": "GitHub",
+      "Type": "Package",
+      "Title": "Functions used within the seqEasy application",
+      "Author": "Zack Swales (@University of Edinburgh)",
+      "Maintainer": "Zack Swales <s2274585@ed.ac.uk>",
+      "Description": "This package contains the functions used for importing bigWig files, feature specification, matrix generation, and output plotting within the seqEasy application importBWlist - imports bigWig files and assigns names specified by the user to the imported objects. It also allows for selection of only a portion of the bigwig file to be imported when specified by a region GRanges object matList - generates matrices using the normaliseToMatrix function from a list of bigWig files and a list of region file GRanges objects with a selection of arguments to customise the matrices generated hmList - generates heatmaps using the EnrichedHeatmap function from a list of matrices and a vector specifying windows. There are a range of customisation options available that the user can apply to their heatmaps mplot - creates average profile plots using the ggplot function from a list of matrices. There are a wide variety of arguments which can be customised to improve the output. getFeature - adapted from the rootGenomics library with a few alterations. The function allows specification of specific region blocks from a GRanges object such as flank regions and exon information plotggplotHeatmap - generates heatmaps as ggplot objects using a list of matrices with a list of customisation options such as colour palettes, scaling, average profile plots etc.",
+      "License": "MIT + file LICENSE",
+      "Encoding": "UTF-8",
+      "Depends": [
+        "R (>= 4.1.0)"
+      ],
+      "Imports": [
+        "rtracklayer",
+        "GenomicRanges",
+        "IRanges",
+        "EnrichedHeatmap",
+        "ggplot2",
+        "dplyr",
+        "tidyr",
+        "stringr",
+        "purrr",
+        "furrr",
+        "circlize",
+        "RColorBrewer",
+        "tibble",
+        "stats",
+        "patchwork",
+        "viridis",
+        "rlang",
+        "matrixStats"
+      ],
+      "RoxygenNote": "7.3.2",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "seqEasyFunctions",
+      "RemoteUsername": "zackswales",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "4e1ebb06ca8758816923ed3ffaf1eddec56e2202",
+      "NeedsCompilation": "no"
     },
     "seqPattern": {
       "Package": "seqPattern",
