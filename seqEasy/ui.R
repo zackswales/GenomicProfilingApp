@@ -3,6 +3,7 @@ ui <- page_navbar(
   bg = "#BCDDDF",
   inverse = TRUE,
   useShinyjs(),
+  navbar_options = navbar_options(cbg = "#BCDDDF", theme = "auto"),
   
   tab_login$ui,
   
@@ -19,3 +20,5 @@ ui <- page_navbar(
   mod_visualisations_ui("visualisations")
   
 )
+
+?page_navbar

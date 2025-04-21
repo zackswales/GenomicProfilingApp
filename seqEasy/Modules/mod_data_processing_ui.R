@@ -56,8 +56,7 @@ mod_data_processing_ui <- function(id) {
               inputId = "flipstrand",
               label = "Flip strand association",
               value = FALSE
-            ),
-            helpText("If all files have the same strandedness - select unstranded")
+            )
           ),
           card(
             full_screen = FALSE,
@@ -116,7 +115,13 @@ mod_data_processing_ui <- function(id) {
               ),
               conditionalPanel(
                 condition = "input.getFeature == 4",
-                DTOutput("savedRegionsTable")
+                DTOutput("savedRegionsTable"),
+                card(
+                  actionButton(
+                    inputId = "clearregions",
+                    label = "Clear saved regions"
+                  )
+                )
               )
             ),
             column(
@@ -138,10 +143,6 @@ mod_data_processing_ui <- function(id) {
                 condition = "input.getFeature == 4",
                 card(
                   card_header("Custom specification"),
-                  actionButton(
-                    inputId = "getregion",
-                    label = "Get Region"
-                  ),
                   textInput(
                     inputId = "regionname",
                     label = "Region name:"
@@ -226,8 +227,8 @@ mod_data_processing_ui <- function(id) {
                     step = 10
                   ),
                   actionButton(
-                    inputId = "clearregions",
-                    label = "Clear saved regions"
+                    inputId = "getregion",
+                    label = "Get Region"
                   )
                 )
               )
@@ -246,7 +247,7 @@ mod_data_processing_ui <- function(id) {
             title = "Further Customisation",
             checkboxInput(
               inputId = "smooth",
-              label = "Smoothen data",
+              label = "Smooth data",
               value = FALSE
             ),
             actionButton(
