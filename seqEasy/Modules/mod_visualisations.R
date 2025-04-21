@@ -1,3 +1,34 @@
+library(genomation)
+library(tidyverse)
+library(EnrichedHeatmap)
+library(wesanderson)
+library(furrr)
+library(purrr)
+library(circlize)
+library(RColorBrewer)
+library(plotrix)
+library(ggh4x)
+library(rtracklayer)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(stats)
+library(viridis)
+library(tibble)
+library(cowplot)
+library(ComplexHeatmap)
+library(shiny)
+library(bslib)
+library(shinyjs)
+library(glue)
+library(ggplot2)
+library(patchwork)
+library(DT)
+library(scales)
+library(fs)
+library(seqEasyFunctions)
+
 mod_visualisations_ui <- function(id){
   ns <- NS(id)
   nav_panel(
@@ -63,7 +94,7 @@ mod_visualisations_ui <- function(id){
             numericInput(
               inputId = "maxylim",
               label = "Upper y-axis limit for average profile plot",
-              value = 5000,
+              value = 60,
               step = 50
             ),
             checkboxInput(

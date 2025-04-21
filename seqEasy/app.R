@@ -1,8 +1,3 @@
-# Source to plotting functions script
-source("R/plottingFunctionsZack.R")
-# Source to the ggplotheatmap function
-source("R/ggplotheatmap.R")
-
 ## Sourcing the modules for the ui.R script
 source("seqEasy/Modules/mod_home.R")
 source("seqEasy/Modules/mod_data_processing_ui.R")
@@ -18,4 +13,5 @@ source("seqEasy/server.R")
 
 # Run the application
 shinyApp(ui = ui, server = server)
+
 
