@@ -1,5 +1,4 @@
 library(genomation)
-library(tidyverse)
 library(EnrichedHeatmap)
 library(wesanderson)
 library(furrr)

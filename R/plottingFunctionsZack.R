@@ -1,5 +1,5 @@
 library(genomation)
-library(tidyverse)
+#library(tidyverse)
 library(EnrichedHeatmap)
 library(wesanderson)
 library(furrr)
@@ -27,7 +27,7 @@ library(patchwork)
 library(DT)
 library(scales)
 library(fs)
-library(UCSC.utils)
+#library(UCSC.utils)
 
 ## NOTES
 ## default to no strand?

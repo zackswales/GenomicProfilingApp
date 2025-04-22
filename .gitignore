@@ -3,3 +3,5 @@
 .RData
 .Ruserdata
 renv
+renv.lock
+GenomicProfilingApp.Rproj
