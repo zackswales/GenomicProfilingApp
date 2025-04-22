@@ -307,6 +307,16 @@ mod_data_processing_ui <- function(id) {
             open = TRUE,
             width = 325,
             title = "Saved Matrices",
+            uiOutput("renamematrixselect"),
+            textInput(
+              inputId = "newmatrixname",
+              label = "Enter new name:"
+            ),
+            actionButton(
+              inputId = "rename",
+              label = "Rename matrix"
+            ),
+            tags$div(style = "margin-top: 10px;"),
             actionButton(
               inputId = "clearmatrices",
               label = "Clear Saved Matrices"

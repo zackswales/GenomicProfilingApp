@@ -842,7 +842,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # Display saved matrices
+  # Display saved matrices as text
   
   output$savedmatrices <- renderText({
     matrix_names <- saved_matrices_poll()
@@ -850,6 +850,50 @@ server <- function(input, output, session) {
       return("No matrices saved")
     } else {
       return(paste(matrix_names, collapse = ", "))
+    }
+  })
+  
+  
+  output$renamematrixselect <- renderUI({
+    matrix_names <- saved_matrices_poll()
+    selectInput(
+      inputId = "selectmatrixtorename",
+      label = "Select matrix",
+      choices = matrix_names,
+      selected = NULL
+    )
+  })
+  
+  observeEvent(input$rename, {
+    req(input$selectmatrixtorename, req(input$newmatrixname))
+    if(is.null(input$newmatrixname)){
+      showNotification("Please enter a new name", type = "warning")
+    } else {
+      save_dir <- get_save_dir()
+    
+      if (!dir.exists(save_dir)) {
+        dir.create(save_dir, recursive = TRUE)
+        print(paste("Created directory:", save_dir))
+      }
+    
+      clean_name <- gsub("[^a-zA-Z0-9_-]", "_", input$newmatrixname)
+    
+      new_filename <- paste0(clean_name, ".rds")
+    
+      old_path <- file.path(save_dir, paste0(input$selectmatrixtorename, ".rds"))
+      new_path <- file.path(save_dir, new_filename)
+    
+      if(file.exists(new_path)) {
+        showNotification("A file with this name already exists", type = "error")
+      } else {
+        success <- file.rename(from = old_path, to = new_path)
+        
+        if(success) {
+          showNotification("Matrix renamed successfully", type = "message")
+        } else {
+          showNotification("Failed to rename matrix", type = "error")
+        }
+      }
     }
   })
   

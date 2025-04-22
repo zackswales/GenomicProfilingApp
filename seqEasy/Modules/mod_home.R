@@ -144,7 +144,7 @@ mod_home_ui <- function(id) {
         ),
         card(
           card_header("Plotting inputs"),
-          card_body("When retrieving previously generated matrices, the feature specification information is not stored with the matrix. Therefore when replotting the matrices ensure to restore the Feature Specification panel inputs as to what they were when the matrices were generated. Inputs in the Input Selection tab and Further Customisation + Matrix generation tab do not need to be restored.")
+          card_body("When retrieving previously generated matrices, the feature specification information is not stored with the matrix. Therefore when replotting the matrices ensure to restore the Feature Specification panel inputs as to what they were when the matrices were generated. Inputs in the Input Selection tab and Further Customisation + Matrix generation tab do not need to be restored. When specifying custom region blocks, two or more regions must be specified.")
         ),
         card(
           card_header("Splitting file"),
