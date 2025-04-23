@@ -135,14 +135,14 @@ server <- function(input, output, session) {
     if (input$databasefetch) {
       fileInput(
         inputId = "Region1", 
-        label = "Upload region files (.bed/.gtf)", 
-        accept = c(".bed", ".gtf"),
+        label = "Upload region files (.bed)", 
+        accept = c(".bed"),
         multiple = TRUE)
     } else {
       fileInput(
         inputId = "Region1", 
-        label = "Upload region files (.bed/.gtf)", 
-        accept = c(".bed", ".gtf"),
+        label = "Upload region files (.bed)", 
+        accept = c(".bed"),
         multiple = TRUE)
     }
   })
@@ -731,7 +731,11 @@ server <- function(input, output, session) {
           grl <- list("features" = features)
           matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(bwf), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
         } else if (input$getFeature == 4) {
-          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(bwf), wins = wins_vector(), strand = strand_reactive(), smooth = smooth_reactive())
+          if(length(wins_vector()) == 1){
+            matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(bwf), wins = wins_vector(), extend = input$startflank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
+          } else {
+            matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(bwf), wins = wins_vector(), strand = strand_reactive(), smooth = smooth_reactive())
+          }
         }
       } else {
         if (input$getFeature == 1) {
@@ -741,7 +745,11 @@ server <- function(input, output, session) {
           grl <- list("features" = features)
           matl_result <- matList(bwf = bwf, grl = grl, names = names(bwf), extend = input$flank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
         } else if (input$getFeature == 4) {
-          matl_result <- matList(bwf = bwf, bwr = bwr, grl = grl, names = names(bwf), wins = wins_vector(), strand = strand_reactive(), smooth = smooth_reactive())
+          if(length(wins_vector()) == 1){
+          matl_result <- matList(bwf = bwf, grl = grl, names = names(bwf), wins = wins_vector(), extend = input$startflank, w = 1, strand = strand_reactive(), smooth = smooth_reactive())
+          } else {
+            matl_result <- matList(bwf = bwf, grl = grl, names = names(bwf), wins = wins_vector(), strand = strand_reactive(), smooth = smooth_reactive())
+          }
         } 
       }
       
