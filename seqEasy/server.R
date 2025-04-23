@@ -28,6 +28,7 @@ library(DT)
 library(scales)
 library(fs)
 library(seqEasyFunctions)
+library(readr)
 
 server <- function(input, output, session) {
   options(shiny.maxRequestSize = 1024^3) # 1 GB
@@ -1540,12 +1541,23 @@ server <- function(input, output, session) {
     }
   })
   
+  # Update averagecolourbychoices when input$columninclude changes
+  observeEvent(input$columninclude, {
+    if (!is.null(input$columninclude)) {
+      averagecolourbychoices(c("Sample", input$columninclude))
+      averagefacetbychoices(c("Sample", input$columninclude))
+    } else {
+      averagecolourbychoices(c("Sample"))
+      averagefacetbychoices(c("Sample"))
+    }
+  })
+  
   observeEvent(input$tsvsplitting, {
     if(!is.null(input$tsvsplitting)){
       annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
       if(ncol(annotation) > 1) {
-        averagecolourbychoices(c("Sample", colnames(annotation)[-1]))
-        averagefacetbychoices(c("Sample", colnames(annotation)[-1]))
+        averagecolourbychoices(c("Sample", input$columninclude))
+        averagefacetbychoices(c("Sample", input$columninclude))
       } else {
         averagefacetbychoices(NULL)
         averagecolourbychoices(NULL)
@@ -1577,34 +1589,30 @@ server <- function(input, output, session) {
         label = "Facet by:",
         multiple = TRUE,
         choices = averagefacetbychoices(),
-        selected = averagefacetbychoices()[1]
+        selected = NULL
       )
     }
   })
   
-  
   average_split_reactive <- reactive({
     req(input$split, input$tsvsplitting$datapath, input$columninclude)
-    
-    annotation <- read_tsv(input$tsvsplitting$datapath, col_names = TRUE)
+    annotation <- read.table(input$tsvsplitting$datapath, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
     colnames(annotation)[1] <- "gene_name"
     
     selected_cols <- input$columninclude
-    if (!all(selected_cols %in% colnames(annotation))) {
-      stop("One or more selected columns not found in annotation file.")
+    if(!all(selected_cols %in% colnames(annotation))) {
+      showNotification("One or more selected columns not found in annotation file", type = "error")
+      stop("One or more selected columns not found in annotation file")
     }
     
-    Anno <- data.frame(name = annotation$gene_name)
+    Anno <- annotation |>
+      select(gene_name, all_of(selected_cols))
+    names(Anno)[1] = "name"
     
-    for (i in seq_along(selected_cols)) {
-      col_name <- paste0("split_val", i)  # Create a name for each new column
-      Anno[[col_name]] <- factor(annotation[[selected_cols[i]]])  # Add the corresponding column
-    }
-    
-    # Set row names as gene names
-    Anno <- Anno %>% column_to_rownames("name")
+    Anno <- Anno |> column_to_rownames("name")
     
     return(Anno)
+    
   })
   
   
@@ -1615,9 +1623,15 @@ server <- function(input, output, session) {
     colourby_col <- input$colourby
     
     # Check if the selected column exists in the reactive dataframe
-    if (!colourby_col %in% colnames(average_split_reactive())) {
+    if (!colourby_col %in% c("Sample",colnames(average_split_reactive()))) {
       stop("Selected column not found in the reactive data.")
     }
+    
+    if(colourby_col == "Sample"){
+      color_palette <- grDevices::rainbow(length(names(selected_matrices_reactive())))
+      names(color_palette) <- names(selected_matrices_reactive())
+      return(color_palette)
+    } else {
     
     # Get the unique families from the specified column
     unique_families <- unique(average_split_reactive()[[colourby_col]])
@@ -1629,6 +1643,7 @@ server <- function(input, output, session) {
       return(color_palette)
     } else {
       return(NULL)
+    }
     }
   })
   
@@ -1734,19 +1749,6 @@ server <- function(input, output, session) {
     } 
   })
   
-  observeEvent(input$averageprofileplotbutton, {
-    print("split")
-    print(average_split_reactive())
-    print("split cols")
-    print(average_split_cols_reactive())
-    print("column include")
-    print(input$columnstoinclude)
-    print("facetby")
-    print(input$facetby)
-    print("colourby")
-    print(input$colourby)
-  })
-  
   observeEvent(input$logout_button, {
     output$averageprofileplot <- renderPlot({
       NULL
@@ -1770,6 +1772,11 @@ server <- function(input, output, session) {
     tryCatch({
       withProgress("Creating average profile...", value = 0.5, {
         if(input$split){
+          if(is.null(input$columninclude)){
+            showNotification("Select columns from splitting file to include", type = "warning")
+          } else if(input$facetchoice == T && is.null(input$facetby)){
+            showNotification("No faceting selected", type = "warning")
+          } else {
         average_profile <- mplot(
           matl = selected_matrices_reactive(),
           split = average_split_reactive(),
@@ -1786,6 +1793,7 @@ server <- function(input, output, session) {
           labels = avg_breaklabels_reactive(),
           facet_scale = "free_y"
         )
+          }
         } else {
           average_profile <- mplot(
             matl = selected_matrices_reactive(),
